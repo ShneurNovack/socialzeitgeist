@@ -77,7 +77,7 @@ export async function nameMoments(env, { max = 8 } = {}) {
       const r = await env.AI.run(MODEL, {
         max_tokens: 160,
         messages: [
-          { role: "system", content: "You name news moments for an editor. Reply with JSON only: {\"label\": \"...\", \"summary\": \"...\"}. label: a specific headline of at most 9 words, in English, naming who and what (names, places), no hashtags, no quotes, no trailing period. summary: one plain English sentence, at most 25 words, saying what happened. Never use em dashes." },
+          { role: "system", content: "You name news moments for an editor. Reply with JSON only: {\"label\": \"...\", \"summary\": \"...\"}. label: a specific news headline of 6 to 10 words, in English, with a subject and a verb, naming who did what (names, places), like: Shapiro condemns Philadelphia bike rally targeting Jewish shops. No hashtags, no quotes, no trailing period. summary: one plain English sentence of 15 to 30 words that says what happened and why people are posting about it. Never use em dashes." },
           { role: "user", content: `Several accounts posted about the same thing. Name it.\n\n${sample}` },
         ],
       });
