@@ -173,7 +173,7 @@ export async function buildMoments(env) {
     `SELECT p.id, p.account_id, p.platform, p.media_type, p.posted_at, p.text, p.url, p.terms, p.ratio, p.z, p.velocity, p.is_repost, p.e,
             a.weight, a.category, a.handle, a.display
        FROM posts p JOIN accounts a ON a.id = p.account_id
-      WHERE p.posted_at > ? AND a.active = 1 AND p.terms IS NOT NULL`,
+      WHERE p.posted_at > ? AND a.active = 1 AND a.category != 'self' AND p.terms IS NOT NULL`,
     now - window,
   );
   const liveDocs = (await first(env, "SELECT COUNT(*) AS n FROM posts WHERE posted_at > ?", now - 30 * D))?.n || 100;
@@ -388,7 +388,7 @@ export async function scoreMoments(env, built) {
       `${m.accounts} accounts in ${hours}h on ${m.platforms.join("/")}`,
       c ? `carried by @${c.handle} at ${(c.ratio || 1).toFixed(1)}x their normal${c.velocity ? `, gaining ${c.velocity.toFixed(1)}x the usual pace` : ""}` : null,
       m.bestFormat ? `${m.bestFormat[0]} doing best` : null,
-      read.fit !== null ? `MM history says ${Math.round(read.fit * 100)}th percentile (closest: "${read.matches[0]?.caption || ""}")` : "nothing like it in MM's history",
+      read.fit !== null ? `MM history puts it at the ${Math.round(read.fit * 100)} percentile (closest: "${read.matches[0]?.caption || ""}")` : "nothing like it in MM's history",
       coveredAt ? `MM covered it ${Math.round((now - coveredAt) / D)}d ago` : null,
     ].filter(Boolean).join("; ");
     stmts.push(env.DB.prepare("UPDATE moments SET mm_fit = ?, mm_covered_at = ?, mm_match = ?, why = ?, score = ? WHERE id = ?").bind(read.fit, coveredAt, j(read.matches), why, score, m.id));
