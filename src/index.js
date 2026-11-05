@@ -4,6 +4,8 @@
 //   POST /ingest/x                   X posts pushed from the Mac script (header x-sz-key)
 //   POST /admin/import-mm            MM post history (JSON array), header x-sz-key
 //   POST /admin/run                  run the pipeline now, header x-sz-key
+//   GET  /app?key=...                the web app (the key is kept in the browser after the first open)
+//   POST /api/tool                   { name, args } for the app, same tools as the MCP, header x-sz-key
 //   GET  /setup?key=...              the setup page (all integrations)
 //   GET  /home/config?key=...        config for the Mac collector
 //   GET  /health
@@ -12,7 +14,12 @@
 
 import { normalizeX, storePosts } from "./collect.js";
 import { all, batch, first, j, run, setSetting } from "./db.js";
-import { handleMcp } from "./mcp.js";
+import { callToolJson, handleMcp } from "./mcp.js";
+import appHtml from "./ui/app.html";
+import appCss from "./ui/app.css";
+import tokensCss from "./ui/tokens.css";
+import baseCss from "./ui/base.css";
+import componentsCss from "./ui/components.css";
 import { runPipeline } from "./pipeline.js";
 import { terms } from "./text.js";
 import { fbCallback, homeConfig, saveAccount, saveMeta, saveReddit, saveX, setupPage, startFb } from "./setup.js";
@@ -104,6 +111,12 @@ export default {
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (pathname === "/health") return json({ ok: true, service: "socialzeitgeist" });
     if (pathname === "/auth/callback") return fbCallback(request, env);
+    // The app: static, and it keeps the key in the browser, so these need no auth. The data does.
+    if (pathname === "/app" || (pathname === "/" && request.method === "GET")) {
+      return new Response(appHtml, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY" } });
+    }
+    if (pathname === "/ui/kit.css") return new Response(`${tokensCss}\n${baseCss}\n${componentsCss}`, { headers: { "content-type": "text/css", "cache-control": "public, max-age=3600" } });
+    if (pathname === "/ui/app.css") return new Response(appCss, { headers: { "content-type": "text/css", "cache-control": "no-store" } });
 
     // Setup pages carry the key in a form field or the query string.
     if (pathname.startsWith("/setup")) {
@@ -124,11 +137,16 @@ export default {
     }
 
     const authed = await safeEqual(requestToken(request, url), env.SZ_KEY);
-    if (!authed) {
-      if (pathname === "/" && request.method === "GET") return new Response("Social Zeitgeist MCP. Add ?bearer_token=<key> and POST JSON-RPC.", { headers: CORS });
-      return json({ error: "Unauthorized" }, 401);
-    }
+    if (!authed) return json({ error: "Unauthorized" }, 401);
     try {
+      if (pathname === "/api/tool" && request.method === "POST") {
+        const { name, args } = await request.json();
+        try {
+          return json({ result: await callToolJson(name, args, env) });
+        } catch (err) {
+          return json({ error: err.message }, 400);
+        }
+      }
       if (pathname === "/ingest/x" && request.method === "POST") return json(await ingestX(env, await request.json()));
       if (pathname === "/home/config" && request.method === "GET") return json(await homeConfig(env));
       if (pathname === "/admin/import-mm" && request.method === "POST") return json(await importMm(env, await request.json()));

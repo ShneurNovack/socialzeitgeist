@@ -1,0 +1,75 @@
+/* The base every component builds on: type, box model and the focus ring.
+   Wrap an app, or one part of a page, in .ui-root. */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap');
+
+.ui-root {
+  background: var(--ui-elevation-surface-bg);
+  color: var(--ui-content-fg);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Zero specificity, so any component class can set its own type and spacing. */
+:where(.ui-root) :where(*, *::before, *::after) {
+  box-sizing: border-box;
+}
+
+:where(.ui-root) :where(button, input, textarea, select) {
+  color: inherit;
+  font: inherit;
+}
+
+:where(.ui-root) :where(h1, h2, h3, h4, h5, h6, p, ul, ol, figure) {
+  margin: 0;
+  padding: 0;
+}
+
+:where(.ui-root) :focus-visible {
+  outline: 2px solid var(--ui-border-focused);
+  outline-offset: 2px;
+}
+
+/* The loading ring. Buttons, inputs and cards all use it, so it lives here. */
+.ui-spinner {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  animation: ui-spin 0.5s linear infinite;
+}
+
+.ui-spinner--medium {
+  width: 24px;
+  height: 24px;
+}
+
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ui-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :where(.ui-root) :where(*, *::before, *::after) {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

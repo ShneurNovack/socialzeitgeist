@@ -30,6 +30,10 @@ GitHub pushes to `main` deploy automatically through Cloudflare Workers Builds.
 4. Everything else is on the setup page, `/setup?key=<SZ_KEY>`: the Meta app (its own app, Facebook Login for Business, redirect `/auth/callback`), the Facebook login that enables Business Discovery, the X burner cookies, the Mac collector one-liner, and the accounts to watch. The `sz_track` tool manages accounts from a chat too.
 5. Add `https://socialzeitgeist.shneur.workers.dev/?bearer_token=<SZ_KEY>` as a custom connector in Claude.
 
+## The app
+
+`/app?key=<SZ_KEY>` is the web app (the key is kept in the browser after the first open): Now (the one-screen brief), Moments, Posts, Accounts, Formats, MM, Test, plus the setup page. It is built on the Canva UI kit from `canva-ui-guide` (`src/ui/tokens.css`, `base.css`, `components.css`, unchanged) with our own brand colors in `src/ui/app.css`. The app calls the same tools as the MCP through `POST /api/tool`.
+
 ## Routes
 
 - `POST /?bearer_token=<SZ_KEY>`: MCP (tools `sz_now`, `sz_moments`, `sz_moment`, `sz_posts`, `sz_post`, `sz_accounts`, `sz_track`, `sz_formats`, `sz_test_idea`, `sz_mm`, `sz_feedback`, `sz_engine`)

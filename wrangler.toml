@@ -4,6 +4,11 @@ compatibility_date = "2025-09-01"
 workers_dev = true
 keep_vars = true
 
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.css"]
+fallthrough = true
+
 [vars]
 IG_MCP_URL = "https://instagrammcp.shneur.workers.dev/"
 

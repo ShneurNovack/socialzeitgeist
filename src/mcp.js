@@ -140,6 +140,19 @@ function accountId(platform, handle) {
   return `${platform}:${String(handle || "").replace(/^@/, "").replace(/^r\//, "").trim().toLowerCase()}`;
 }
 
+// The web app calls the same tools over /api/tool and gets the parsed JSON back.
+export async function callToolJson(name, args, env) {
+  if (!TOOLS.find((t) => t.name === name)) throw new ToolError(`Unknown tool: ${name}`);
+  const r = await callTool(name, args || {}, env);
+  const text = r.content?.[0]?.text || "";
+  if (r.isError) throw new ToolError(text);
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 async function callTool(name, args = {}, env) {
   const now = Date.now();
   switch (name) {
