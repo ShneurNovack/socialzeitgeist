@@ -16,8 +16,8 @@ GitHub pushes to `main` deploy automatically through Cloudflare Workers Builds.
 
 | Platform | How | Notes |
 |---|---|---|
-| Instagram | Meta's official API, through the `instagrammcp` Worker | Other accounts via Business Discovery (needs a Facebook-Login connection in instagrammcp); MM's own posts via its Instagram-Login connection. Professional accounts only. Polled hourly, inside Meta's 200 calls/hour. |
-| X | `scripts/home_collector.py` on the Mac, pushed to `/ingest/x` | twscrape with a burner account's cookies, reads only. Never a real account. |
+| Instagram | Meta's official Graph API | Other accounts via Business Discovery with this Worker's own Meta app and a Facebook-Login token (any professional account Zami admins through a Page); MM's own posts via the `instagrammcp` Worker. Professional accounts only. Polled hourly, inside Meta's 200 calls/hour. |
+| X | `scripts/home_collector.py` on the Mac, pushed to `/ingest/x` | twscrape with a burner account's cookies (saved on the setup page, pulled by the Mac), reads only. Never a real account. |
 | Telegram | public channel preview (`t.me/s/<channel>`) | views only |
 | Bluesky | public AppView API | no login |
 | Reddit | from the Mac script (Reddit refuses cloud IPs) | subreddit listings |
@@ -25,11 +25,10 @@ GitHub pushes to `main` deploy automatically through Cloudflare Workers Builds.
 ## Setup
 
 1. Create the D1 database and apply `migrations/0001_init.sql` (`wrangler d1 migrations apply socialzeitgeist`).
-2. Secrets on the Worker: `SZ_KEY` (guards the MCP endpoint and the push and admin routes), `IG_MCP_TOKEN` (the instagrammcp key). `IG_MCP_URL` is a plain var in `wrangler.toml`.
+2. Secrets on the Worker: `SZ_KEY` (guards the MCP endpoint, the setup page, the push and admin routes), `ENCRYPTION_KEY` (encrypts the Meta app secret, the Page token and the X cookies in D1), `IG_MCP_TOKEN` (the instagrammcp key, for MM's own posts). `IG_MCP_URL` is a plain var in `wrangler.toml`; instagrammcp is reached through a service binding.
 3. Import MM's history: `POST /admin/import-mm` with the JSON array exported from the old app's `MMPost` entity (header `x-sz-key`).
-4. Track accounts with the `sz_track` tool (or seed them with `scripts/seed.json` through the same tool).
-5. On the Mac: copy `scripts/home_collector.py` to `~/.socialzeitgeist/`, write `~/.socialzeitgeist/config.json` (see the script's docstring), `pip3 install twscrape requests`, add the burner account to twscrape, and load `scripts/com.reshape.socialzeitgeist.plist` into launchd (edit the path first).
-6. Add `https://socialzeitgeist.shneur.workers.dev/?bearer_token=<SZ_KEY>` as a custom connector in Claude.
+4. Everything else is on the setup page, `/setup?key=<SZ_KEY>`: the Meta app (its own app, Facebook Login for Business, redirect `/auth/callback`), the Facebook login that enables Business Discovery, the X burner cookies, the Mac collector one-liner, and the accounts to watch. The `sz_track` tool manages accounts from a chat too.
+5. Add `https://socialzeitgeist.shneur.workers.dev/?bearer_token=<SZ_KEY>` as a custom connector in Claude.
 
 ## Routes
 

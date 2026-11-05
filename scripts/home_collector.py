@@ -9,23 +9,14 @@ pushes normalized posts to the Worker's /ingest/x endpoint.
           only account exposed to a suspension is the burner. Reads only, nothing is ever posted.
   Reddit: the public listing JSON, which Reddit refuses to cloud IPs but serves to a home connection.
 
-Config lives in ~/.socialzeitgeist/config.json:
-  {
-    "endpoint": "https://socialzeitgeist.shneur.workers.dev",
-    "key": "<SZ_KEY>",
-    "x_accounts": ["handle1", "handle2"],      # handles to read
-    "x_list_id": "1234567890",                  # optional: a private X List to read instead of / as well as handles
-    "x_limit": 20,                              # posts per handle per run
-    "reddit_subs": ["Judaism", "Israel"]
-  }
+The only thing on the Mac is ~/.socialzeitgeist/config.json:
+  { "endpoint": "https://socialzeitgeist.shneur.workers.dev", "key": "<SZ_KEY>" }
 
-The twscrape account pool is ~/.socialzeitgeist/accounts.db. Add the burner once with:
-  twscrape --db ~/.socialzeitgeist/accounts.db add_accounts burner.txt username:password:email:email_password:cookies
-or interactively with `twscrape add_accounts` and then `twscrape login_accounts`. Cookies are the
-reliable way: export the burner's cookies (auth_token and ct0) from the browser.
+Everything else (the burner's cookies, the X handles and List, the subreddits) is set on the Worker's
+setup page and pulled from GET /home/config on every run. The burner is kept in a twscrape pool at
+~/.socialzeitgeist/accounts.db and re-added whenever the cookies on the Worker change.
 
-Install: pip3 install twscrape requests
-Schedule: see scripts/com.reshape.socialzeitgeist.plist (launchd, every 15 minutes).
+Install: the one-liner on the setup page (it also loads the launchd job, every 15 minutes).
 """
 
 import asyncio
@@ -96,23 +87,52 @@ def tweet_row(t, platform="x"):
     }
 
 
-async def collect_x(cfg):
+def fetch_config(cfg):
+    r = requests.get(cfg["endpoint"].rstrip("/") + "/home/config", headers={"x-sz-key": cfg["key"]}, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+async def ensure_burner(api, x):
+    """Keep the twscrape pool in step with the cookies saved on the Worker."""
+    cookies = x.get("cookies") or {}
+    if not cookies.get("auth_token") or not cookies.get("ct0"):
+        return False
+    username = (x.get("username") or "burner").lstrip("@")
+    marker = HOME / "burner.fingerprint"
+    fp = cookies["auth_token"][-8:] + ":" + cookies["ct0"][-8:]
+    if marker.exists() and marker.read_text() == fp:
+        return True
+    cookie_str = f"auth_token={cookies['auth_token']}; ct0={cookies['ct0']}"
+    try:
+        await api.pool.delete_accounts(username)
+    except Exception:
+        pass
+    await api.pool.add_account(username, "x", "x@example.com", "x", cookies=cookie_str)
+    marker.write_text(fp)
+    return True
+
+
+async def collect_x(x):
     from twscrape import API, gather
 
     api = API(str(HOME / "accounts.db"))
+    if not await ensure_burner(api, x):
+        print("no burner cookies on the Worker yet", file=sys.stderr)
+        return []
     rows = []
-    limit = int(cfg.get("x_limit", 20))
+    limit = int(x.get("limit", 20))
     seen = set()
-    if cfg.get("x_list_id"):
+    if x.get("list_id"):
         try:
-            for t in await gather(api.list_timeline(int(cfg["x_list_id"]), limit=max(limit * 4, 80))):
+            for t in await gather(api.list_timeline(int(x["list_id"]), limit=max(limit * 4, 80))):
                 if t.id in seen:
                     continue
                 seen.add(t.id)
                 rows.append(tweet_row(t))
         except Exception as e:
-            print(f"list {cfg['x_list_id']}: {e}", file=sys.stderr)
-    for handle in cfg.get("x_accounts", []):
+            print(f"list {x['list_id']}: {e}", file=sys.stderr)
+    for handle in x.get("accounts", []):
         try:
             user = await api.user_by_login(handle.lstrip("@"))
             if not user:
@@ -129,9 +149,9 @@ async def collect_x(cfg):
     return rows
 
 
-def collect_reddit(cfg):
+def collect_reddit(subs):
     rows = []
-    for sub in cfg.get("reddit_subs", []):
+    for sub in subs:
         try:
             r = requests.get(
                 f"https://www.reddit.com/r/{sub}/new.json?limit=50&raw_json=1",
@@ -168,10 +188,12 @@ def main():
     if not cfg or not cfg.get("endpoint") or not cfg.get("key"):
         print(f"Missing {CONFIG}: needs endpoint and key", file=sys.stderr)
         sys.exit(2)
+    remote = fetch_config(cfg)
     rows = []
-    if cfg.get("x_accounts") or cfg.get("x_list_id"):
-        rows += asyncio.run(collect_x(cfg))
-    rows += collect_reddit(cfg)
+    x = remote.get("x") or {}
+    if x.get("accounts") or x.get("list_id"):
+        rows += asyncio.run(collect_x(x))
+    rows += collect_reddit((remote.get("reddit") or {}).get("subs", []))
     result = push(cfg, rows)
     state = load(STATE, {})
     state.update({"last_run": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "pushed": len(rows), "result": result})

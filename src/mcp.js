@@ -304,7 +304,8 @@ async function callTool(name, args = {}, env) {
       return textResult({
         as_of: new Date(now).toISOString(), stages: latest, counts,
         platforms: byPlatform.map((x) => ({ platform: x.platform, accounts: x.n, last_poll: x.last ? new Date(x.last).toISOString() : null })),
-        x_last_push: xLast ? xLast.value : "never (the Mac script has not pushed yet)",
+        x_last_push: xLast ? xLast.value : "never (the Mac collector has not pushed yet)",
+        setup_page: `${env.SZ_PUBLIC_URL || "https://socialzeitgeist.shneur.workers.dev"}/setup?key=${env.SZ_KEY}`,
         failing: failing.map((f) => ({ id: f.id, error: f.last_error, at: f.polled_at ? new Date(f.polled_at).toISOString() : null })),
         feedback: Object.fromEntries(fb.map((x) => [x.value, x.n])),
       });

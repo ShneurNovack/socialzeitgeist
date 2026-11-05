@@ -4,6 +4,8 @@
 //   POST /ingest/x                   X posts pushed from the Mac script (header x-sz-key)
 //   POST /admin/import-mm            MM post history (JSON array), header x-sz-key
 //   POST /admin/run                  run the pipeline now, header x-sz-key
+//   GET  /setup?key=...              the setup page (all integrations)
+//   GET  /home/config?key=...        config for the Mac collector
 //   GET  /health
 //
 // Cron every 10 minutes: collect due accounts, read, find moments, score, write the brief.
@@ -13,6 +15,7 @@ import { all, batch, first, j, run, setSetting } from "./db.js";
 import { handleMcp } from "./mcp.js";
 import { runPipeline } from "./pipeline.js";
 import { terms } from "./text.js";
+import { fbCallback, homeConfig, saveAccount, saveMeta, saveX, setupPage, startFb } from "./setup.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -100,6 +103,24 @@ export default {
     const { pathname } = url;
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
     if (pathname === "/health") return json({ ok: true, service: "socialzeitgeist" });
+    if (pathname === "/auth/callback") return fbCallback(request, env);
+
+    // Setup pages carry the key in a form field or the query string.
+    if (pathname.startsWith("/setup")) {
+      const form = request.method === "POST" ? await request.formData() : null;
+      const key = form ? form.get("key") : url.searchParams.get("key");
+      if (!(await safeEqual(key, env.SZ_KEY))) return new Response("Not found", { status: 404 });
+      let notice;
+      try {
+        if (pathname === "/setup/connect-fb") return startFb(request, env);
+        if (pathname === "/setup/meta" && form) notice = await saveMeta(env, form);
+        else if (pathname === "/setup/x" && form) notice = await saveX(env, form);
+        else if (pathname === "/setup/account" && form) notice = await saveAccount(env, form);
+      } catch (err) {
+        notice = `Error: ${err.message}`;
+      }
+      return setupPage(request, env, key, notice);
+    }
 
     const authed = await safeEqual(requestToken(request, url), env.SZ_KEY);
     if (!authed) {
@@ -108,6 +129,7 @@ export default {
     }
     try {
       if (pathname === "/ingest/x" && request.method === "POST") return json(await ingestX(env, await request.json()));
+      if (pathname === "/home/config" && request.method === "GET") return json(await homeConfig(env));
       if (pathname === "/admin/import-mm" && request.method === "POST") return json(await importMm(env, await request.json()));
       if (pathname === "/admin/run" && request.method === "POST") return json({ ok: true, log: await runPipeline(env, { budgetMs: 45000, collect: url.searchParams.get("collect") !== "0" }) });
       if (pathname === "/admin/sql" && request.method === "POST") {

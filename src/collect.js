@@ -6,6 +6,7 @@
 
 import { hook, terms } from "./text.js";
 import { all, batch, j, run } from "./db.js";
+import { businessDiscovery } from "./setup.js";
 
 const UA = "socialzeitgeist/1.0 (+https://reshapecreative.com; private research tool)";
 
@@ -52,10 +53,10 @@ export async function collectInstagram(env, account) {
       comments: m.comments_count || 0,
     }));
   }
-  const data = await igRpc(env, "ig_business_discovery", { username: account.handle, limit: 25 });
-  const profile = data.account || {};
+  // Other accounts: Business Discovery with this Worker's own Facebook-Login token (see setup.js).
+  const data = await businessDiscovery(env, account.handle, 25);
   return {
-    profile: { followers: profile.followers_count, display: profile.name, native_id: profile.id },
+    profile: data.profile,
     posts: (data.posts || []).map((m) => ({
       native_id: m.id,
       url: m.permalink,
