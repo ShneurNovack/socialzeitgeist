@@ -1,0 +1,43 @@
+# socialzeitgeist
+
+What the Jewish social internet is doing right now, read for Meaningful Minute. A Cloudflare Worker (D1, cron, MCP) that watches a chosen set of accounts on Instagram, X, Telegram, Bluesky and Reddit and reads every post against that account's own normal. It is the social-only successor to the news-based Jewish Zeitgeist app, with a different engine; `docs/ENGINE.md` explains the readings.
+
+GitHub pushes to `main` deploy automatically through Cloudflare Workers Builds.
+
+## What it answers
+
+- What is moving right now across the accounts that matter to MM, as moments (several accounts on the same thing inside 72 hours), ranked by heat, direction and MM fit.
+- Which single posts are out-performing their own account most, and which are gaining fastest right now.
+- Which formats and openers are beating normal this week versus last week across the peer set.
+- Where MM has a gap: subjects MM's own two-year history likes that MM has not posted.
+- How any idea would do, against MM's history and the live moments.
+
+## Sources and how they are read
+
+| Platform | How | Notes |
+|---|---|---|
+| Instagram | Meta's official API, through the `instagrammcp` Worker | Other accounts via Business Discovery (needs a Facebook-Login connection in instagrammcp); MM's own posts via its Instagram-Login connection. Professional accounts only. Polled hourly, inside Meta's 200 calls/hour. |
+| X | `scripts/home_collector.py` on the Mac, pushed to `/ingest/x` | twscrape with a burner account's cookies, reads only. Never a real account. |
+| Telegram | public channel preview (`t.me/s/<channel>`) | views only |
+| Bluesky | public AppView API | no login |
+| Reddit | from the Mac script (Reddit refuses cloud IPs) | subreddit listings |
+
+## Setup
+
+1. Create the D1 database and apply `migrations/0001_init.sql` (`wrangler d1 migrations apply socialzeitgeist`).
+2. Secrets on the Worker: `SZ_KEY` (guards the MCP endpoint and the push and admin routes), `IG_MCP_TOKEN` (the instagrammcp key). `IG_MCP_URL` is a plain var in `wrangler.toml`.
+3. Import MM's history: `POST /admin/import-mm` with the JSON array exported from the old app's `MMPost` entity (header `x-sz-key`).
+4. Track accounts with the `sz_track` tool (or seed them with `scripts/seed.json` through the same tool).
+5. On the Mac: copy `scripts/home_collector.py` to `~/.socialzeitgeist/`, write `~/.socialzeitgeist/config.json` (see the script's docstring), `pip3 install twscrape requests`, add the burner account to twscrape, and load `scripts/com.reshape.socialzeitgeist.plist` into launchd (edit the path first).
+6. Add `https://socialzeitgeist.shneur.workers.dev/?bearer_token=<SZ_KEY>` as a custom connector in Claude.
+
+## Routes
+
+- `POST /?bearer_token=<SZ_KEY>`: MCP (tools `sz_now`, `sz_moments`, `sz_moment`, `sz_posts`, `sz_post`, `sz_accounts`, `sz_track`, `sz_formats`, `sz_test_idea`, `sz_mm`, `sz_feedback`, `sz_engine`)
+- `POST /ingest/x`: posts pushed from the Mac (`x-sz-key` header)
+- `POST /admin/import-mm`, `POST /admin/run`, `POST /admin/sql` (select only): admin, same header
+- `GET /health`
+
+## Policy notes
+
+Instagram is read only through Meta's official Graph API with the account's own permissions, which is what Business Discovery exists for. Nothing scrapes Instagram, nothing logs in to Instagram outside Meta's own login, and nothing is posted by this Worker. X is read through a burner account on the Mac, which is against X's terms for that burner and exposes nothing else. Telegram, Bluesky and Reddit are public reads of what those platforms publish openly.

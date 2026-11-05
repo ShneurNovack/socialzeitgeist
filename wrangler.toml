@@ -1,0 +1,19 @@
+name = "socialzeitgeist"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+keep_vars = true
+
+[vars]
+IG_MCP_URL = "https://instagrammcp.shneur.workers.dev/"
+
+[triggers]
+crons = ["*/10 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "socialzeitgeist"
+database_id = "44380a12-4325-4729-994c-7c230a4d03de"
+
+[observability]
+enabled = true

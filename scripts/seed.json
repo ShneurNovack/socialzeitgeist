@@ -1,0 +1,15 @@
+[
+  {"platform":"instagram","handle":"meaningfulminute","category":"self","weight":1},
+  {"platform":"instagram","handle":"aish","category":"peer","weight":1},
+  {"platform":"instagram","handle":"chabad","category":"peer","weight":1},
+  {"platform":"instagram","handle":"humansofjudaism","category":"peer","weight":1.2},
+  {"platform":"instagram","handle":"jewishbreakingnews","category":"news","weight":0.8},
+  {"platform":"instagram","handle":"idf","category":"big","weight":0.6},
+  {"platform":"instagram","handle":"standwithus","category":"org","weight":0.8},
+  {"platform":"instagram","handle":"unpackedmedia","category":"peer","weight":1},
+  {"platform":"telegram","handle":"amitsegal","category":"news","weight":0.7},
+  {"platform":"telegram","handle":"abualiexpress","category":"news","weight":0.6},
+  {"platform":"reddit","handle":"Judaism","category":"niche","weight":0.8},
+  {"platform":"reddit","handle":"Israel","category":"niche","weight":0.6},
+  {"platform":"bluesky","handle":"jewishinsider.com","category":"news","weight":0.6}
+]
