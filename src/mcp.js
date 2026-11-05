@@ -186,7 +186,7 @@ async function callTool(name, args = {}, env) {
       if (args.account) { where.push("a.handle = ?"); binds.push(String(args.account).replace(/^@/, "").toLowerCase()); }
       if (args.format) { where.push("p.media_type = ?"); binds.push(args.format); }
       if (args.query) { where.push("p.text LIKE ?"); binds.push(`%${args.query}%`); }
-      const order = { pace: "p.velocity DESC NULLS LAST", newest: "p.posted_at DESC", engagement: "p.e DESC" }[args.sort] || "p.z DESC NULLS LAST";
+      const order = { pace: "p.velocity DESC NULLS LAST", newest: "p.posted_at DESC", engagement: "p.e DESC" }[args.sort] || "p.ratio DESC NULLS LAST";
       const rows = await all(env, `SELECT p.*, a.handle FROM posts p JOIN accounts a ON a.id = p.account_id WHERE ${where.join(" AND ")} ORDER BY ${order} LIMIT ?`, ...binds, Math.min(args.limit || 20, 60));
       return textResult(rows.map((r) => ({ ...postView(r, now), moment_id: r.moment_id || undefined })));
     }
