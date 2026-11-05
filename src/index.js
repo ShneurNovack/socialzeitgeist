@@ -147,6 +147,16 @@ export default {
       if (pathname === "/home/config" && request.method === "GET") return json(await homeConfig(env));
       if (pathname === "/admin/import-mm" && request.method === "POST") return json(await importMm(env, await request.json()));
       if (pathname === "/admin/run" && request.method === "POST") return json({ ok: true, log: await runPipeline(env, { budgetMs: 45000, collect: url.searchParams.get("collect") !== "0" }) });
+      if (pathname === "/admin/ai" && request.method === "POST") {
+        // Diagnostics: run one model call and return it raw.
+        const { model, input } = await request.json();
+        const t = Date.now();
+        try {
+          return json({ ms: Date.now() - t, result: await env.AI.run(model, input) });
+        } catch (err) {
+          return json({ error: err.message }, 500);
+        }
+      }
       if (pathname === "/admin/sql" && request.method === "POST") {
         // Read-only diagnostics.
         const { sql } = await request.json();
