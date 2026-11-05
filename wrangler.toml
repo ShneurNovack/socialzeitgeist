@@ -7,6 +7,10 @@ keep_vars = true
 [vars]
 IG_MCP_URL = "https://instagrammcp.shneur.workers.dev/"
 
+[[services]]
+binding = "IG"
+service = "instagrammcp"
+
 [triggers]
 crons = ["*/10 * * * *"]
 

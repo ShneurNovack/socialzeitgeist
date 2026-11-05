@@ -13,7 +13,9 @@ const UA = "socialzeitgeist/1.0 (+https://reshapecreative.com; private research 
 
 async function igRpc(env, name, args) {
   if (!env.IG_MCP_URL || !env.IG_MCP_TOKEN) throw new Error("IG_MCP_URL / IG_MCP_TOKEN not set");
-  const res = await fetch(`${env.IG_MCP_URL}?bearer_token=${encodeURIComponent(env.IG_MCP_TOKEN)}`, {
+  // Worker-to-Worker on workers.dev needs the service binding (a plain fetch gets Cloudflare error 1042).
+  const doFetch = env.IG ? env.IG.fetch.bind(env.IG) : fetch;
+  const res = await doFetch(`${env.IG_MCP_URL}?bearer_token=${encodeURIComponent(env.IG_MCP_TOKEN)}`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
@@ -286,12 +288,13 @@ export async function markPolled(env, account, { error, profile } = {}) {
 const COLLECTORS = { instagram: collectInstagram, telegram: collectTelegram, bluesky: collectBluesky, reddit: collectReddit };
 
 // Poll the accounts that are due. Instagram is polled hourly (Meta's rate limit is 200 calls an hour
-// per token); the open platforms every 20 minutes.
+// per token); the open platforms every 20 minutes. X and Reddit are pushed from the Mac (Reddit refuses
+// cloud IPs), so they are never polled from here.
 export async function collectDue(env, { budgetMs = 40000, max = 40 } = {}) {
   const now = Date.now();
   const due = await all(
     env,
-    `SELECT * FROM accounts WHERE active = 1 AND platform != 'x'
+    `SELECT * FROM accounts WHERE active = 1 AND platform NOT IN ('x', 'reddit')
        AND (polled_at IS NULL OR polled_at < CASE WHEN platform = 'instagram' THEN ? ELSE ? END)
      ORDER BY polled_at IS NOT NULL, polled_at LIMIT ?`,
     now - 55 * 60000, now - 20 * 60000, max,
