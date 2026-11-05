@@ -21,11 +21,19 @@ export function langOf(text) {
   return "en";
 }
 
-const LANG_NAME = { he: "hebrew", ar: "arabic" };
+const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+const content = (r) => r?.choices?.[0]?.message?.content ?? r?.response ?? "";
 
-async function translate(env, text, lang) {
-  const r = await env.AI.run("@cf/meta/m2m100-1.2b", { text: String(text).slice(0, 1800), source_lang: LANG_NAME[lang] || lang, target_lang: "english" });
-  return (r && r.translated_text) || null;
+async function translate(env, text) {
+  const r = await env.AI.run(MODEL, {
+    max_tokens: 700,
+    messages: [
+      { role: "system", content: "Translate the user's social media post to natural English. Output only the translation, nothing else: no preface, no notes. Keep names and places as commonly written in English media. Keep hashtags and @handles as they are. Never use em dashes." },
+      { role: "user", content: String(text).slice(0, 2500) },
+    ],
+  });
+  const out = String(content(r)).trim();
+  return out.length >= 2 ? out : null;
 }
 
 // Posts that still need an English text. Up to `max` per run, newest first, so the brief reads in English fast.
@@ -42,7 +50,7 @@ export async function translateDue(env, { max = 30, budgetMs = 40000 } = {}) {
   for (const r of rows) {
     if (Date.now() - started > budgetMs) break;
     try {
-      const en = await translate(env, r.text, r.lang);
+      const en = await translate(env, r.text);
       if (!en) throw new Error("empty");
       stmts.push(env.DB.prepare("UPDATE posts SET text_en = ?, terms = ?, hook = ? WHERE id = ?").bind(en.slice(0, 4000), j(terms(en)), j(hook(en)), r.id));
       done++;
@@ -66,14 +74,14 @@ export async function nameMoments(env, { max = 8 } = {}) {
     if (!posts.length) continue;
     const sample = posts.map((x, i) => `${i + 1}. @${x.handle}: ${String(x.text_en || x.text).replace(/\s+/g, " ").slice(0, 400)}`).join("\n");
     try {
-      const r = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
-        max_tokens: 120,
+      const r = await env.AI.run(MODEL, {
+        max_tokens: 160,
         messages: [
           { role: "system", content: "You name news moments for an editor. Reply with JSON only: {\"label\": \"...\", \"summary\": \"...\"}. label: a specific headline of at most 9 words, in English, naming who and what (names, places), no hashtags, no quotes, no trailing period. summary: one plain English sentence, at most 25 words, saying what happened. Never use em dashes." },
           { role: "user", content: `Several accounts posted about the same thing. Name it.\n\n${sample}` },
         ],
       });
-      const text = String(r?.response || "");
+      const text = String(content(r));
       const m2 = text.match(/\{[\s\S]*\}/);
       const parsed = m2 ? JSON.parse(m2[0]) : null;
       const label = String(parsed?.label || "").replace(/[—–]/g, ",").trim().slice(0, 90);
