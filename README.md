@@ -32,7 +32,7 @@ GitHub pushes to `main` deploy automatically through Cloudflare Workers Builds.
 
 ## The app
 
-`/app?key=<SZ_KEY>` is the web app (the key is kept in the browser after the first open): Now (the one-screen brief), Moments, Posts, Accounts, Formats, MM, Test, plus the setup page. It is built on the Canva UI kit from `canva-ui-guide` (`src/ui/tokens.css`, `base.css`, `components.css`, unchanged) with our own brand colors in `src/ui/app.css`. The app calls the same tools as the MCP through `POST /api/tool`.
+`/app?key=<SZ_KEY>` is the web app (the key is kept in the browser after the first open): Now (the one-screen brief), Moments, Posts, Accounts, Formats, MM, Test, plus the setup page. It uses the same visual language as the Jewish Zeitgeist app (paper and ink, Funnel Display, blue for "go", heat and cool), in `src/ui/app.css`. The app calls the same tools as the MCP through `POST /api/tool`.
 
 ## Routes
 

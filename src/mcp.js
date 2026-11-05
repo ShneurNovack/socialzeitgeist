@@ -195,7 +195,7 @@ async function callTool(name, args = {}, env) {
       if (!r) throw new ToolError(`No post ${args.id}.`);
       const trail = await all(env, "SELECT at, e, likes, comments, shares, views FROM snapshots WHERE post_id = ? ORDER BY at", args.id);
       const moment = r.moment_id ? await first(env, "SELECT id, label, state, score FROM moments WHERE id = ?", r.moment_id) : null;
-      return textResult({ ...postView(r, now), full_text: r.text, terms: p(r.terms, []).slice(0, 15), hook: p(r.hook), moment, trail: trail.map((t) => ({ at: new Date(t.at).toISOString(), e: t.e, likes: t.likes, comments: t.comments, shares: t.shares, views: t.views })) });
+      return textResult({ ...postView(r, now), full_text: r.text_en || r.text, original_text: r.lang !== "en" ? r.text : undefined, terms: p(r.terms, []).slice(0, 15), hook: p(r.hook), moment, trail: trail.map((t) => ({ at: new Date(t.at).toISOString(), e: t.e, likes: t.likes, comments: t.comments, shares: t.shares, views: t.views })) });
     }
     case "sz_accounts": {
       const where = [args.include_inactive ? "1=1" : "a.active = 1"];

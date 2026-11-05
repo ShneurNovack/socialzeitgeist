@@ -2,6 +2,7 @@
 
 import { all, first, j, p, run } from "./db.js";
 import { formatPulse } from "./engine.js";
+import { risingTerms } from "./lang.js";
 
 const H = 3600000;
 const D = 86400000;
@@ -26,7 +27,8 @@ export function postView(r, now = Date.now()) {
     format: r.media_type,
     age: age(r.posted_at, now),
     posted_at: new Date(r.posted_at).toISOString(),
-    text: excerpt(r.text),
+    text: excerpt(r.text_en || r.text),
+    original: r.text_en && r.lang !== "en" ? excerpt(r.text, 120) : undefined,
     url: r.url,
     likes: r.likes,
     comments: r.comments,
@@ -49,6 +51,7 @@ export async function momentView(env, m, { posts = 6 } = {}) {
   return {
     id: m.id,
     label: m.label,
+    summary: m.summary || undefined,
     state: m.state,
     score: m.score,
     heat: m.heat,
@@ -116,6 +119,7 @@ export async function composeBrief(env) {
     .sort((a, b) => b.lr - a.lr)
     .slice(0, 8);
   const pulse = await formatPulse(env);
+  const names = await risingTerms(env);
   const counts = await first(
     env,
     `SELECT (SELECT COUNT(*) FROM accounts WHERE active = 1) AS accounts,
@@ -135,6 +139,7 @@ export async function composeBrief(env) {
     cooling,
     outperformers: outperformers.map((r) => postView(r, now)),
     fastest: fastest.map((r) => postView(r, now)),
+    names_today: names,
     format_pulse: pulse,
     accounts_this_week: accountsWeek.map((a) => ({ account: `@${a.handle}`, platform: a.platform, category: a.category, posts: a.n, typical: `${Math.exp(a.lr).toFixed(2)}x`, best: `${Number(a.best).toFixed(1)}x` })),
     mm_recent: mmOwn.map((r) => postView(r, now)),

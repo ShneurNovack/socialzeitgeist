@@ -17,9 +17,6 @@ import { all, batch, first, j, run, setSetting } from "./db.js";
 import { callToolJson, handleMcp } from "./mcp.js";
 import appHtml from "./ui/app.html";
 import appCss from "./ui/app.css";
-import tokensCss from "./ui/tokens.css";
-import baseCss from "./ui/base.css";
-import componentsCss from "./ui/components.css";
 import { runPipeline } from "./pipeline.js";
 import { terms } from "./text.js";
 import { fbCallback, homeConfig, saveAccount, saveMeta, saveReddit, saveX, setupPage, startFb } from "./setup.js";
@@ -115,7 +112,6 @@ export default {
     if (pathname === "/app" || (pathname === "/" && request.method === "GET")) {
       return new Response(appHtml, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "x-frame-options": "DENY" } });
     }
-    if (pathname === "/ui/kit.css") return new Response(`${tokensCss}\n${baseCss}\n${componentsCss}`, { headers: { "content-type": "text/css", "cache-control": "public, max-age=3600" } });
     if (pathname === "/ui/app.css") return new Response(appCss, { headers: { "content-type": "text/css", "cache-control": "no-store" } });
 
     // Setup pages carry the key in a form field or the query string.

@@ -7,6 +7,7 @@
 import { hook, terms } from "./text.js";
 import { all, batch, j, run } from "./db.js";
 import { businessDiscovery, REDDIT_UA, redditAuth } from "./setup.js";
+import { langOf } from "./lang.js";
 
 const UA = "socialzeitgeist/1.0 (+https://reshapecreative.com; private research tool)";
 
@@ -250,19 +251,24 @@ export async function storePosts(env, account, posts, { windowDays = 14 } = {}) 
     const firstSeen = prior ? prior.first_seen_at : now;
     if (!prior) newCount++;
     const t = terms(x.text);
+    const lang = langOf(x.text);
+    // Terms and hook from the original on insert; the translate stage replaces them with English ones later.
+    // On update, keep the English text and the terms built from it.
     stmts.push(
       env.DB.prepare(
         `INSERT INTO posts (id, account_id, platform, url, text, media_type, posted_at, first_seen_at, seen_at,
-           likes, comments, shares, views, saves, quotes, e, terms, hook, is_repost, raw)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+           likes, comments, shares, views, saves, quotes, e, terms, hook, is_repost, raw, lang)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
          ON CONFLICT (id) DO UPDATE SET url = excluded.url, text = excluded.text, media_type = excluded.media_type,
            seen_at = excluded.seen_at, likes = excluded.likes, comments = excluded.comments, shares = excluded.shares,
            views = excluded.views, saves = excluded.saves, quotes = excluded.quotes, e = excluded.e,
-           terms = excluded.terms, hook = excluded.hook, is_repost = excluded.is_repost`,
+           terms = CASE WHEN posts.text_en IS NOT NULL AND posts.text_en != '' THEN posts.terms ELSE excluded.terms END,
+           hook = CASE WHEN posts.text_en IS NOT NULL AND posts.text_en != '' THEN posts.hook ELSE excluded.hook END,
+           is_repost = excluded.is_repost, lang = excluded.lang`,
       ).bind(
         id, account.id, account.platform, x.url || null, String(x.text || "").slice(0, 4000), x.media_type || "text",
         x.posted_at, firstSeen, now, x.likes || 0, x.comments || 0, x.shares || 0, x.views || 0, x.saves || 0, x.quotes || 0,
-        e, j(t), j(hook(x.text)), x.is_repost ? 1 : 0,
+        e, j(t), j(hook(x.text)), x.is_repost ? 1 : 0, lang,
       ),
     );
     // A snapshot only when the number moved, so the trail stays small.

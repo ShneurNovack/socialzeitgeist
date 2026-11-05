@@ -5,285 +5,350 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Social Zeitgeist</title>
-<link rel="stylesheet" href="/ui/kit.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@500;600;700;800&family=Funnel+Sans:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/ui/app.css">
 </head>
-<body class="ui-root" data-theme="light">
-<div class="sz" id="app">
-  <header class="ui-topbar sz__top">
-    <div class="ui-topbar__group">
-      <span class="ui-topbar__brand">Social Zeitgeist</span>
-      <span class="ui-topbar__divider"></span>
-      <span class="ui-topbar__status" id="status">loading</span>
-    </div>
-    <div class="ui-topbar__group">
-      <button class="ui-topbar__item" type="button" id="theme" aria-label="Toggle dark mode">Dark</button>
-      <button class="ui-topbar__item ui-topbar__outline" type="button" id="refresh">Refresh</button>
-      <a class="ui-topbar__share" id="setupLink" href="#">Setup</a>
-    </div>
-  </header>
-  <div class="sz__side">
-    <nav class="ui-rail" aria-label="Pages" id="rail"></nav>
-  </div>
-  <main class="sz__main"><div class="page" id="page"></div></main>
-</div>
-<div class="toast-area" id="toasts"></div>
+<body>
+<header class="head"><div class="head__in">
+  <a class="brand" href="#now"><span class="mark" aria-hidden="true"><i></i><i></i></span>Social Zeitgeist</a>
+  <nav class="nav" id="nav" aria-label="Main"></nav>
+  <div class="head__side small"><span class="muted" id="status">loading</span><a class="btn btn-soft btn-xs" id="setupLink" href="#">Setup</a></div>
+</div></header>
+<main id="page"></main>
+<nav class="mobnav" id="mobnav" aria-label="Main"></nav>
+<div class="toasts" id="toasts"></div>
 <script>
 (() => {
   const KEY_NAME = "sz_key";
   const qs = new URLSearchParams(location.search);
-  if (qs.get("key")) { try { localStorage.setItem(KEY_NAME, qs.get("key")); } catch {} history.replaceState(null, "", location.pathname + location.hash); }
+  if (qs.get("key")) { try { localStorage.setItem(KEY_NAME, qs.get("key")); } catch {} history.replaceState(null, "", location.pathname + (location.hash || "#now")); }
   let key = null; try { key = localStorage.getItem(KEY_NAME); } catch {}
-  if (!key) { document.getElementById("page").innerHTML = '<div class="card"><p class="ui-text">Open this page from the link with your key.</p></div>'; return; }
+  const page = document.getElementById("page");
+  if (!key) { page.innerHTML = '<div class="page"><p class="lede" style="padding-top:4rem">Open this page from the link with your key.</p></div>'; return; }
   document.getElementById("setupLink").href = `/setup?key=${encodeURIComponent(key)}`;
 
-  const ICONS = {
-    now: '<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="4"/>',
-    moments: '<path d="M4 18c3-6 5-9 8-9s5 3 8 9"/><path d="M4 12h16"/>',
-    posts: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h8M8 17h5"/>',
-    accounts: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M15.5 14c2.8 0 5.5 2 5.5 5"/>',
-    formats: '<rect x="3" y="5" width="7" height="14" rx="2"/><rect x="14" y="5" width="7" height="9" rx="2"/>',
-    mm: '<path d="M4 20V6l5 8 5-8v14"/><path d="M17 6h3v14"/>',
-    test: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"/>',
-  };
-  const PAGES = [["now", "Now"], ["moments", "Moments"], ["posts", "Posts"], ["accounts", "Accounts"], ["formats", "Formats"], ["mm", "MM"], ["test", "Test"]];
-
+  const PAGES = [["now", "Now"], ["moments", "Moments"], ["posts", "Posts"], ["accounts", "Accounts"], ["formats", "Formats"], ["mm", "Past posts"], ["test", "Test an idea"], ["engine", "Engine"]];
   const $ = (s, el = document) => el.querySelector(s);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  const n = (v, d = 1) => Number(v || 0).toFixed(d);
+  const k = (v) => Number(v || 0).toLocaleString();
   const api = async (name, args = {}) => {
     const res = await fetch("/api/tool", { method: "POST", headers: { "content-type": "application/json", "x-sz-key": key }, body: JSON.stringify({ name, args }) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const d = await res.json();
-    if (d.error) throw new Error(d.error);
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || d.error) throw new Error(d.error || `HTTP ${res.status}`);
     return d.result;
   };
-  const toast = (msg) => {
-    const t = document.createElement("div");
-    t.className = "ui-toast"; t.setAttribute("role", "status"); t.setAttribute("data-theme", "dark"); t.style.cssText = "position:static;translate:none";
-    t.innerHTML = `<p class="ui-toast__message">${esc(msg)}</p><button class="ui-toast__ok" type="button">Ok</button>`;
-    t.querySelector("button").onclick = () => t.remove();
-    $("#toasts").appendChild(t); setTimeout(() => t.remove(), 5000);
+  const toast = (msg) => { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; $("#toasts").appendChild(t); setTimeout(() => t.remove(), 3500); };
+  const PLAT = { instagram: "Instagram", x: "X", telegram: "Telegram", bluesky: "Bluesky", reddit: "Reddit", threads: "Threads" };
+  const STATE = { new: ["New", "pill-heat"], rising: ["Rising", "pill-heat"], peak: ["Peaking", "pill-go"], cooling: ["Cooling", "pill-cool"], gone: ["Gone", "pill-cool"] };
+  const statePill = (s, xs) => { const [l, c] = STATE[s] || [s, ""]; return `<span class="pill ${c} ${xs ? "pill-xs" : ""}">${esc(l)}</span>`; };
+  const fmt = (f) => ({ reel: "Reel", carousel: "Carousel", image: "Static", video: "Video", text: "Text", link: "Link" }[f] || f);
+  const vs = (p) => p.vs_normal ? p.vs_normal : "";
+  const hot = (p) => Number(String(p.vs_normal || "0").replace("x", "")) >= 2;
+  const metrics = (p) => [p.likes ? `${k(p.likes)} likes` : "", p.comments ? `${k(p.comments)} comments` : "", p.shares ? `${k(p.shares)} shares` : "", p.views ? `${k(p.views)} views` : ""].filter(Boolean).join(", ");
+  const spark = (vals, color = "var(--ink)", w = 48, h = 24) => {
+    const v = vals && vals.length > 1 ? vals : [0, 0];
+    const max = Math.max(1, ...v), step = w / (v.length - 1);
+    const pts = v.map((y, i) => [i * step, h - 4 - (y / max) * (h - 9)]);
+    const last = pts[pts.length - 1];
+    return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true" style="overflow:visible"><polyline points="${pts.map((p) => p.join(",")).join(" ")}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="${color}"/></svg>`;
   };
-  const badge = (state) => {
-    const kind = { new: "info", rising: "positive", peak: "warn", cooling: "assist", gone: "assist" }[state] || "assist";
-    return `<span class="ui-badge ui-badge--${kind}">${esc(state)}</span>`;
-  };
-  const plat = (p) => `<span class="ui-badge ui-badge--contrast">${esc(p)}</span>`;
-  const link = (url, text) => url ? `<a class="plain" href="${esc(url)}" target="_blank" rel="noopener">${text}</a>` : text;
-  const postRow = (p, { extra = "" } = {}) => `
-    <div class="row" data-post="${esc(p.id)}">
-      <div class="row__main">
-        <div class="row__meta">${plat(p.platform)} <span class="ui-text--bold">${esc(p.account)}</span> · ${esc(p.format)} · ${esc(p.age)}${p.repost ? " · repost" : ""}${extra}</div>
-        <div class="row__text">${link(p.url, esc(p.text))}</div>
+  const feedback = (momentId, postId, { dark = false, xs = true } = {}) => `<div class="fb" data-fb="${esc(momentId || "")}" data-fbpost="${esc(postId || "")}">${[["posted", "We posted this"], ["liked", "Good idea, not now"], ["passed", "Not for us"]].map(([v, l]) => `<button class="btn ${dark ? "btn-glass" : "btn-soft"} ${xs ? "btn-xs" : "btn-sm"}" type="button" data-value="${v}">${l}</button>`).join("")}</div>`;
+  const postItem = (p, { current } = {}) => `
+    <button class="post" type="button" data-post="${esc(p.id)}" ${current ? 'aria-current="true"' : ""}>
+      <div style="min-width:0">
+        <div class="post__who"><b>${esc(p.account)}</b><span>${esc(PLAT[p.platform] || p.platform)}, ${esc(fmt(p.format))}, ${esc(p.age)} ago${p.repost ? ", repost" : ""}</span></div>
+        <p class="post__text clamp3" dir="auto">${esc(p.text)}</p>
       </div>
-      <div class="row__side"><div class="num num--big">${esc(p.vs_normal || "")}</div><div class="small muted">${p.pace ? `${esc(p.pace)} pace` : ""}<br>${[p.likes ? `${Number(p.likes).toLocaleString()} likes` : "", p.comments ? `${Number(p.comments).toLocaleString()} comments` : "", p.shares ? `${Number(p.shares).toLocaleString()} shares` : "", p.views ? `${Number(p.views).toLocaleString()} views` : ""].filter(Boolean).join(" · ")}</div></div>
-    </div>`;
-  const momentRow = (m, current) => `
-    <button class="row" type="button" data-moment="${esc(m.id)}" ${current ? 'aria-current="true"' : ""}>
-      <div class="row__main">
-        <div class="row__title">${esc(m.label)}</div>
-        <div class="row__meta">${badge(m.state)} ${(m.platforms || []).map(plat).join(" ")} · ${m.accounts} accounts · ${m.posts} posts · ${esc(m.last_post)}${m.mm_fit ? ` · MM ${esc(m.mm_fit)}` : ""}${m.mm_covered ? ` · covered ${esc(m.mm_covered)}` : ""}</div>
-      </div>
-      <div class="row__side"><div class="num num--big">${Number(m.score).toFixed(1)}</div><div class="small muted">${m.direction === "up" ? "rising" : m.direction === "down" ? "falling" : "steady"}</div></div>
+      <div class="post__num ${hot(p) ? "hot" : ""}">${esc(vs(p))}<small>${p.pace ? `${esc(p.pace)} the usual pace<br>` : ""}${esc(metrics(p))}</small></div>
     </button>`;
-  const card = (title, body, { span = 6, head = "", cls = "" } = {}) => `<section class="card span-${span} ${cls}"><div class="card__head"><h2 class="ui-title ui-title--small">${esc(title)}</h2>${head}</div>${body}</section>`;
-  const feedbackButtons = (momentId, postId) => `
-    <div class="actions" data-fb="${esc(momentId || "")}" data-fbpost="${esc(postId || "")}">
-      <button class="ui-button ui-button--primary ui-button--small" type="button" data-value="posted">Posted it</button>
-      <button class="ui-button ui-button--secondary ui-button--small" type="button" data-value="liked">Good idea, not now</button>
-      <button class="ui-button ui-button--tertiary ui-button--small" type="button" data-value="passed">Not for us</button>
-    </div>`;
+  const momentItem = (m, { current } = {}) => `
+    <a class="item" href="#moment/${esc(m.id)}" data-moment="${esc(m.id)}" ${current ? 'aria-current="true"' : ""}>
+      <div class="item__grid"><div style="min-width:0">
+        <div style="display:flex;gap:0.4rem;align-items:center;margin-bottom:0.25rem">${statePill(m.state, true)}${m.best_format ? `<span class="small bold">${esc(fmt(m.best_format))}</span>` : ""}</div>
+        <p class="item__title clamp2" dir="auto">${esc(m.label)}</p>
+        <p class="item__meta truncate">${m.accounts} accounts on ${(m.platforms || []).map((x) => PLAT[x] || x).join(", ")}, last post ${esc(m.last_post)} ago${m.mm_fit ? `, MM ${esc(m.mm_fit)}` : ""}${m.mm_covered ? `, covered ${esc(m.mm_covered)} ago` : ""}</p>
+      </div><div class="item__num">${n(m.score)}<small>${m.direction === "up" ? "rising" : m.direction === "down" ? "falling" : "steady"}</small></div></div>
+    </a>`;
+  const reasons = (why) => `<ul class="reasons">${String(why || "").split("; ").filter(Boolean).map((r) => `<li class="${/nothing like it|covered it|cooling/i.test(r) ? "against" : ""}"><i>${/nothing like it|covered it|cooling/i.test(r) ? "–" : "✓"}</i><span>${esc(r.replace(/^./, (c) => c.toUpperCase()))}</span></li>`).join("")}</ul>`;
+  const seg = (name, options, value, cls = "") => `<div class="seg ${cls}" role="group" data-seg="${name}">${options.map(([v, l]) => `<button type="button" aria-pressed="${v === value}" data-v="${esc(v)}">${esc(l)}</button>`).join("")}</div>`;
+  const segValue = (name, root = page) => root.querySelector(`[data-seg="${name}"] [aria-pressed="true"]`)?.dataset.v;
+  const ago = (iso) => { const m = (Date.now() - Date.parse(iso)) / 60000; return m < 1 ? "just now" : m < 60 ? `${Math.round(m)} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 
   let brief = null;
-  const page = $("#page");
   const setStatus = (s) => { $("#status").textContent = s; };
-
   async function loadBrief(fresh = false) {
-    page.classList.add("loading");
-    try { brief = await api("sz_now", { fresh }); setStatus(`brief ${new Date(brief.as_of).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} · ${brief.counts.accounts} accounts · ${brief.counts.posts_72h} posts in 72h · ${brief.counts.moments} moments`); }
-    catch (e) { setStatus("could not load"); toast(e.message); }
-    page.classList.remove("loading");
+    try { brief = await api("sz_now", { fresh }); setStatus(`Engine checked ${ago(brief.as_of)}`); } catch (e) { setStatus("could not load"); toast(e.message); }
   }
 
-  // ---- pages ----
-  const render = {
-    async now() {
-      if (!brief) await loadBrief();
-      const b = brief; if (!b) return;
-      page.className = "page page--now";
-      const hero = b.post_now ? `
-        <div class="row__meta">${badge(b.post_now.state)} ${(b.post_now.platforms || []).map(plat).join(" ")} · started ${esc(b.post_now.started)} · ${b.post_now.accounts} accounts${b.post_now.best_format ? ` · ${esc(b.post_now.best_format)} doing best` : ""}</div>
-        <div class="hero__label">${esc(b.post_now.label)}</div>
-        <p class="ui-text hero__why">${esc(b.post_now.why)}</p>
-        ${(b.post_now.top_posts || []).slice(0, 1).map((p) => `<div class="hero__post">${postRow(p)}</div>`).join("")}
-        ${b.post_now.mm_closest?.length ? `<dl class="kv" style="margin-top:16px"><dt>MM's closest</dt><dd>${b.post_now.mm_closest.slice(0, 2).map((m) => `${link(m.url, esc(m.caption))} <span class="muted">(${m.pct ?? "?"}th pct, ${esc(m.posted_at)})</span>`).join("<br>")}</dd></dl>` : ""}
-        ${feedbackButtons(b.post_now.id)}` : `<div class="empty">Nothing is moving yet. Add accounts on the setup page and give it an hour.</div>`;
-      page.innerHTML = [
-        card("Post now", hero, { span: 7, cls: "card--hero" }),
-        card("Moving", `<div class="list">${b.moving.slice(1, 7).map((m) => momentRow(m)).join("") || '<div class="empty">No moments yet</div>'}</div>`, { span: 5 }),
-        card("Out-performing their own account", `<div class="list">${b.outperformers.slice(0, 6).map((p) => postRow(p)).join("") || '<div class="empty">Nothing yet</div>'}</div>`, { span: 7, head: '<span class="small muted">last 48h</span>' }),
-        card("Gaps for MM", b.gaps.length ? `<div class="list">${b.gaps.map((g) => `<button class="row" type="button" data-moment="${esc(g.id)}"><div class="row__main"><div class="row__title">${esc(g.label)}</div><div class="row__meta">MM ${esc(g.mm_fit)}${g.best_format ? ` · ${esc(g.best_format)}` : ""}</div><div class="row__text">${esc(g.why)}</div></div><div class="row__side"><div class="num num--big">${Number(g.score).toFixed(1)}</div></div></button>`).join("")}</div>` : '<div class="empty">No gaps right now: everything MM\'s history likes, MM has covered or isn\'t moving.</div>', { span: 5 }),
-        card("Gaining fastest", `<div class="list">${b.fastest.slice(0, 5).map((p) => postRow(p)).join("") || '<div class="empty">Needs a few hours of readings</div>'}</div>`, { span: 4, head: '<span class="small muted">last 24h</span>' }),
-        card("Format pulse", formatTable(b.format_pulse), { span: 4, head: '<span class="small muted">this week vs last</span>' }),
-        card("Accounts this week", `<table class="tbl"><tr><th>Account</th><th class="r">Typical</th><th class="r">Best</th></tr>${b.accounts_this_week.map((a) => `<tr><td>${plat(a.platform)} ${esc(a.account)} <span class="muted small">${esc(a.category)}, ${a.posts} posts</span></td><td class="r num">${esc(a.typical)}</td><td class="r">${esc(a.best)}</td></tr>`).join("") || '<tr><td colspan="3" class="empty">Nothing yet</td></tr>'}</table>`, { span: 4 }),
-        card("Meaningful Minute, lately", `<div class="list">${b.mm_recent.slice(0, 6).map((p) => postRow(p)).join("") || '<div class="empty">MM\'s own posts appear once the Instagram connector is polled</div>'}</div>`, { span: 7, head: '<span class="small muted">against MM\'s own normal</span>' }),
-        card("Cooling", b.cooling.length ? `<div class="list">${b.cooling.map((c) => `<button class="row" type="button" data-moment="${esc(c.id)}"><div class="row__main"><div class="row__title">${esc(c.label)}</div><div class="row__meta">peak ${Number(c.peak).toFixed(1)} · now ${Number(c.heat).toFixed(1)}</div></div></button>`).join("")}</div>` : '<div class="empty">Nothing cooling</div>', { span: 5 }),
-      ].join("");
-    },
-    async moments() {
-      page.className = "page page--split";
-      page.innerHTML = `<div><div class="toolbar">${segmented("mstate", ["all", "new", "rising", "peak", "cooling"], "all")}</div><div class="list" id="mlist"><div class="empty">Loading</div></div></div><div class="detail" id="mdetail"><div class="card"><div class="empty">Pick a moment</div></div></div>`;
-      const load = async () => {
-        const state = page.querySelector('[data-seg="mstate"] [aria-checked="true"]').dataset.v;
-        const rows = await api("sz_moments", { limit: 40, ...(state !== "all" ? { state } : {}) });
-        $("#mlist").innerHTML = rows.map((m) => momentRow(m)).join("") || '<div class="empty">No moments</div>';
-        if (rows[0] && !$("#mdetail .hero__label")) showMoment(rows[0].id);
-      };
-      page.addEventListener("segchange", load);
-      await load();
-    },
-    async posts() {
-      page.className = "page";
-      page.innerHTML = `<div class="toolbar">
-        ${segmented("sort", ["outperformance", "pace", "newest", "engagement"], "outperformance")}
-        ${select("platform", ["all", "instagram", "x", "telegram", "bluesky", "reddit"], "all")}
-        ${select("hours", ["24", "48", "168", "336"], "48", (v) => `${v} hours`)}
-        <label class="ui-input"><input class="ui-input__field" id="pq" placeholder="Search text" autocomplete="off"></label>
-        <label class="ui-text small"><input type="checkbox" id="pself"> include MM</label>
-      </div><div class="list" id="plist"><div class="empty">Loading</div></div>`;
-      const load = async () => {
-        const args = { sort: page.querySelector('[data-seg="sort"] [aria-checked="true"]').dataset.v, hours: Number($("#sel-hours").value), limit: 60, include_self: $("#pself").checked };
-        if ($("#sel-platform").value !== "all") args.platform = $("#sel-platform").value;
-        if ($("#pq").value.trim()) args.query = $("#pq").value.trim();
-        const rows = await api("sz_posts", args);
-        $("#plist").innerHTML = rows.map((p) => postRow(p, { extra: p.moment_id ? ` · <a class="plain" href="#moments/${esc(p.moment_id)}">in a moment</a>` : "" })).join("") || '<div class="empty">Nothing matches</div>';
-      };
-      page.addEventListener("segchange", load);
-      page.addEventListener("change", load);
-      $("#pq").addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
-      await load();
-    },
-    async accounts() {
-      page.className = "page";
-      const rows = await api("sz_accounts", { include_inactive: true });
-      page.innerHTML = `<section class="card" style="margin-bottom:24px"><div class="card__head"><h2 class="ui-title ui-title--small">Add an account</h2></div>
-        <form class="toolbar" id="addForm" style="margin:0">
-          ${select("ap", ["instagram", "x", "telegram", "bluesky", "reddit"], "instagram")}
-          <label class="ui-input" style="width:220px"><input class="ui-input__field" name="handle" placeholder="handle, channel or subreddit" required autocomplete="off"></label>
-          ${select("ac", ["peer", "big", "niche", "news", "creator", "org", "self"], "peer")}
-          <label class="ui-input" style="width:90px"><input class="ui-input__field" name="weight" value="1" aria-label="Weight"></label>
-          <button class="ui-button ui-button--primary" type="submit">Add</button>
-        </form><p class="ui-text ui-text--secondary small" style="margin-top:8px">Instagram accounts must be professional (business or creator). Weight 0.2 to 2 says how much that account's attention counts.</p></section>
-        <table class="tbl"><tr><th>Platform</th><th>Account</th><th>Category · weight</th><th class="r">Normal</th><th class="r">This week</th><th>Status</th><th></th></tr>
-        ${rows.map((a) => `<tr data-acct="${esc(a.id)}"><td>${plat(a.platform)}</td><td><span class="ui-text--bold">${esc(a.handle)}</span>${a.display ? `<br><span class="muted small">${esc(a.display)}</span>` : ""}${a.followers ? `<br><span class="muted small">${Number(a.followers).toLocaleString()} followers</span>` : ""}</td><td>${esc(a.category)} · ${a.weight}</td><td class="r small">${Object.entries(a.normal_engagement || {}).map(([k, v]) => `${esc(k)} ${esc(v)}`).join("<br>") || "<span class='muted'>no baseline yet</span>"}</td><td class="r">${esc(a.this_week || "")}</td><td>${!a.active ? '<span class="ui-badge ui-badge--assist">paused</span>' : a.error ? `<span class="ui-badge ui-badge--critical">error</span> <span class="small muted">${esc(a.error.slice(0, 80))}</span>` : `<span class="ui-badge ui-badge--positive">ok</span> <span class="small muted">${a.polled ? new Date(a.polled).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : ""}</span>`}</td><td style="white-space:nowrap"><button class="ui-button ui-button--tertiary ui-button--small" data-act="${a.active ? "pause" : "resume"}">${a.active ? "Pause" : "Resume"}</button> <button class="ui-button ui-button--tertiary ui-button--small" data-act="remove">Remove</button></td></tr>`).join("")}</table>`;
-      $("#addForm").onsubmit = async (e) => {
-        e.preventDefault();
-        const f = e.target;
-        try { const r = await api("sz_track", { action: "add", platform: $("#sel-ap").value, handle: f.handle.value, category: $("#sel-ac").value, weight: Number(f.weight.value) || 1 }); toast(r.note || "Added"); render.accounts(); } catch (err) { toast(err.message); }
-      };
-      page.onclick = async (e) => {
-        const b = e.target.closest("[data-act]"); if (!b) return;
-        const id = b.closest("tr").dataset.acct; const [platform, handle] = id.split(":");
-        if (b.dataset.act === "remove" && !confirm(`Remove ${id}?`)) return;
-        try { await api("sz_track", { action: b.dataset.act, platform, handle }); toast(`${b.dataset.act} ${id}`); render.accounts(); } catch (err) { toast(err.message); }
-      };
-    },
-    async formats() {
-      page.className = "page page--now";
-      const f = await api("sz_formats", {});
-      page.innerHTML = card("Formats, this week against last", formatTable(f), { span: 6 }) + card("Openers", f.openers.length ? `<table class="tbl"><tr><th>First line</th><th class="r">With</th><th class="r">Without</th><th class="r">n</th></tr>${f.openers.map((o) => `<tr><td>${esc(o.trait.replace("_", " "))}</td><td class="r num">${o.with}x</td><td class="r">${o.without}x</td><td class="r muted">${o.n}</td></tr>`).join("")}</table>` : '<div class="empty">Needs more posts</div>', { span: 6 }) + `<p class="ui-text ui-text--secondary span-12">Median result against each account's own normal. 1.0x is normal. ${f.posts_read} posts read.</p>`;
-    },
-    async mm() {
-      page.className = "page page--split";
-      page.innerHTML = `<div><div class="toolbar"><label class="ui-input" style="width:100%"><input class="ui-input__field" id="mmq" placeholder="Search MM's two years of posts" autocomplete="off"></label></div><div id="mmres"></div></div><div><section class="card"><div class="card__head"><h2 class="ui-title ui-title--small">MM lately</h2></div><div class="list" id="mmrecent"><div class="empty">Loading</div></div></section></div>`;
-      const r = await api("sz_mm", { limit: 20 });
-      $("#mmrecent").innerHTML = r.recent.map((p) => postRow(p)).join("") || '<div class="empty">No live MM posts yet</div>';
-      $("#mmres").innerHTML = `<p class="ui-text ui-text--secondary">${r.history.posts} posts in the history, ${esc(r.history.first)} to ${esc(r.history.last)}.</p>`;
-      $("#mmq").addEventListener("keydown", async (e) => {
-        if (e.key !== "Enter") return;
-        const q = e.target.value.trim(); if (!q) return;
-        const res = await api("sz_mm", { query: q });
-        $("#mmres").innerHTML = `<section class="card"><div class="card__head"><h2 class="ui-title ui-title--small">Closest MM posts</h2><span class="small muted">${res.fit !== null ? `fit ${Math.round(res.fit * 100)}th pct` : "no fit"}</span></div><div class="list">${res.matches.map((m) => `<div class="row"><div class="row__main"><div class="row__text">${link(m.url, esc(m.caption))}</div><div class="row__meta">${esc(m.format)} · ${esc(m.source)} · ${esc(m.posted_at)} · sim ${m.sim}</div></div><div class="row__side"><div class="num num--big">${m.pct ?? "?"}</div><div class="small muted">pct</div></div></div>`).join("") || '<div class="empty">Nothing close</div>'}</div></section>`;
-      });
-    },
-    async test() {
-      page.className = "page page--split";
-      page.innerHTML = `<section class="card"><div class="card__head"><h2 class="ui-title ui-title--small">Test an idea</h2></div>
-        <div class="ui-multiline"><textarea class="ui-multiline__field" id="idea" rows="6" placeholder="A subject, an angle, or a caption draft"></textarea></div>
-        <div class="actions"><button class="ui-button ui-button--primary" id="runTest" type="button">Score it</button></div></section>
-        <div id="tres"><div class="card"><div class="empty">The verdict lands here: MM's history, and which live moments it rides.</div></div></div>`;
-      $("#runTest").onclick = async () => {
-        const text = $("#idea").value.trim(); if (!text) return;
-        $("#runTest").classList.add("loading");
-        try {
-          const r = await api("sz_test_idea", { text });
-          $("#tres").innerHTML = `<section class="card"><div class="hero__label" style="font-size:20px;line-height:28px">${esc(r.verdict)}</div>
-            <dl class="kv"><dt>MM fit</dt><dd>${r.mm.fit !== null ? `${Math.round(r.mm.fit * 100)}th percentile (closest match ${r.mm.strength})` : "no record"}</dd><dt>Covered</dt><dd>${r.covered_recently ? esc(r.covered_recently) : "not recently"}</dd></dl>
-            <h3 class="ui-title ui-title--xsmall" style="margin:16px 0 8px">Closest MM posts</h3><div class="list">${r.mm.matches.map((m) => `<div class="row"><div class="row__main"><div class="row__text">${link(m.url, esc(m.caption))}</div><div class="row__meta">${esc(m.format)} · ${esc(m.posted_at)} · sim ${m.sim}</div></div><div class="row__side"><div class="num num--big">${m.pct ?? "?"}</div><div class="small muted">pct</div></div></div>`).join("") || '<div class="empty">Nothing close</div>'}</div>
-            <h3 class="ui-title ui-title--xsmall" style="margin:16px 0 8px">Live moments it rides</h3><div class="list">${r.rides.map((m) => `<button class="row" type="button" data-moment="${esc(m.id)}"><div class="row__main"><div class="row__title">${esc(m.label)}</div><div class="row__meta">${badge(m.state)} ${m.accounts} accounts · match ${m.match}</div></div><div class="row__side num">${Number(m.score).toFixed(1)}</div></button>`).join("") || '<div class="empty">None right now</div>'}</div></section>`;
-        } catch (e) { toast(e.message); }
-        $("#runTest").classList.remove("loading");
-      };
-    },
-  };
-
-  function formatTable(f) {
-    if (!f || !f.formats.length) return '<div class="empty">Needs a week of posts</div>';
-    return `<table class="tbl"><tr><th>Format</th><th class="r">This week</th><th class="r">Last week</th><th class="r">n</th></tr>${f.formats.map((x) => `<tr><td>${esc(x.format)}</td><td class="r num">${x.this_week ?? ""}x</td><td class="r">${x.last_week ? `${x.last_week}x` : "none"}</td><td class="r muted">${x.n}</td></tr>`).join("")}</table>`;
-  }
-  function segmented(name, options, value) {
-    const idx = Math.max(0, options.indexOf(value));
-    return `<div class="ui-segmented" role="radiogroup" tabindex="0" data-seg="${name}" style="--ui-segmented-count: ${options.length}; --ui-segmented-index: ${idx}">${options.map((o, i) => `<div class="ui-segmented__item"><button class="ui-segmented__option" type="button" role="radio" tabindex="-1" aria-checked="${i === idx}" data-v="${esc(o)}">${esc(o)}</button></div>`).join("")}</div>`;
-  }
-  function select(name, options, value, label = (v) => v) {
-    return `<select class="ui-input__field" id="sel-${name}" style="width:160px;height:40px;padding:0 12px;border:1px solid var(--ui-control-border);border-radius:var(--ui-radius-sharp);background:var(--ui-control-bg)" aria-label="${name}">${options.map((o) => `<option value="${esc(o)}" ${o === value ? "selected" : ""}>${esc(label(o))}</option>`).join("")}</select>`;
+  // ---------- Now: the one-screen board ----------
+  async function renderNow() {
+    if (!brief) await loadBrief();
+    const b = brief; if (!b) { page.innerHTML = '<div class="page"><p class="empty">Nothing loaded.</p></div>'; return; }
+    page.className = "";
+    const pn = b.post_now;
+    const carrier = pn?.top_posts?.[0];
+    const nowBlock = pn ? `
+      <section class="now on-dark" aria-labelledby="dash-now">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:0.75rem" class="small bold">
+          <h1 id="dash-now" style="font-size:0.92rem;font-weight:800;font-family:var(--display)">Post now</h1>
+          <span class="truncate" style="opacity:0.85">${pn.best_format ? `${esc(fmt(pn.best_format))}, ` : ""}${pn.accounts} accounts, ${esc(pn.last_post)} ago</span>
+        </div>
+        <h2 class="display clamp2" style="font-size:1.18rem;line-height:1.1;margin-top:0.4rem" dir="auto"><a href="#moment/${esc(pn.id)}">${esc(pn.label)}</a></h2>
+        ${pn.summary ? `<p class="clamp2" style="margin-top:0.3rem;font-weight:600;font-size:0.88rem;line-height:1.3" dir="auto">${esc(pn.summary)}</p>` : ""}
+        <p class="small clamp2" style="opacity:0.86;font-size:0.82rem;margin-top:0.3rem" title="${esc(pn.why)}">${esc(pn.why)}</p>
+        ${carrier ? `<a class="carrier" href="${esc(carrier.url || "#")}" target="_blank" rel="noopener" style="display:block"><p class="small bold truncate">${esc(carrier.account)}, ${esc(vs(carrier))} their normal${carrier.pace ? `, ${esc(carrier.pace)} the usual pace` : ""}</p><p class="small clamp2" style="opacity:0.9" dir="auto">${esc(carrier.text)}</p></a>` : ""}
+        <div style="margin-top:0.7rem;display:flex;flex-wrap:wrap;gap:0.5rem"><a class="btn btn-white btn-xs" href="#moment/${esc(pn.id)}">Open</a>${feedback(pn.id, null, { dark: true })}</div>
+      </section>` : `<section class="now" style="background:var(--fog);color:var(--ink)"><h1 class="display" style="font-size:1.15rem;font-weight:800">Nothing worth posting right now</h1><p class="small muted" style="margin-top:0.3rem">The engine looks again every ten minutes. Add accounts on the setup page if the list is thin.</p></section>`;
+    const tabs = [["moving", "Moving"], ["gaps", "Gaps"], ["fastest", "Fastest"], ["cooling", "Cooling"]];
+    const names = b.names_today || [];
+    const maxLift = Math.max(1, ...names.map((t) => t.lift));
+    const pulse = b.format_pulse || { formats: [], openers: [] };
+    const maxF = Math.max(0.01, ...pulse.formats.map((f) => f.this_week || 0));
+    const accts = b.accounts_this_week || [];
+    const maxA = Math.max(0.01, ...accts.map((a) => Number(String(a.typical).replace("x", ""))));
+    page.innerHTML = `<div class="dash">
+      <div class="col">
+        ${nowBlock}
+        <section class="panel panel--fill" aria-label="Lists"><div class="panel__in">
+          <div style="padding:2px 2px 8px">${seg("left", tabs, "moving", "seg-white seg-sm")}</div>
+          <div class="panel__list scroll" id="leftList"></div>
+          <p class="panel__foot small muted">Scores are heat (how much the accounts are out-performing, weighted) times MM fit. <a class="link" href="#moments">All moments</a></p>
+        </div></section>
+      </div>
+      <section class="feed" aria-label="Out-performing posts">
+        <div class="feed__bar">
+          ${seg("plat", [["all", "All"], ["instagram", "Instagram"], ["x", "X"], ["telegram", "Telegram"], ["bluesky", "Bluesky"], ["reddit", "Reddit"]], "all", "seg-sm")}
+          ${seg("sort", [["outperformance", "Beating normal"], ["pace", "Gaining"], ["newest", "Newest"]], "outperformance", "seg-sm")}
+        </div>
+        <div class="feed__list scroll" id="feedList"><p class="empty">Loading</p></div>
+        <div id="feedAside"></div>
+      </section>
+      <div class="col">
+        <section class="panel" style="padding:1rem;max-height:34%" aria-labelledby="dash-names">
+          <h2 id="dash-names" class="display" style="font-size:1.2rem;flex:none">Names coming up today</h2>
+          ${names.length ? `<div class="names scroll">${names.map((t) => `<a class="name" href="${t.moment_id ? `#moment/${esc(t.moment_id)}` : `#posts/${encodeURIComponent(t.term)}`}" title="${t.accounts} accounts today, usually ${t.usual} a day" style="height:${(1.7 + 0.5 * (t.lift / maxLift)).toFixed(2)}rem;line-height:${(1.7 + 0.5 * (t.lift / maxLift)).toFixed(2)}rem;font-size:${(0.84 + 0.36 * (t.lift / maxLift)).toFixed(2)}rem" dir="auto">${esc(t.term)}<small>${t.today}</small></a>`).join("")}</div>` : `<p class="muted" style="margin-top:0.7rem">No name is running above its normal level today.</p>`}
+        </section>
+        <section class="panel panel--fill" aria-label="Formats and accounts"><div class="panel__in">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;padding:2px 2px 8px">${seg("right", [["formats", "Formats"], ["accounts", "Accounts"], ["mm", "MM lately"]], "formats", "seg-white seg-sm")}<a class="small bold muted" href="#formats" id="rightMore">All formats</a></div>
+          <div class="panel__list scroll bars" id="rightList"></div>
+          <p class="panel__foot small muted" id="rightFoot">Median result this week against each account's own normal. 1.0x is normal.</p>
+        </div></section>
+      </div>
+    </div>`;
+    const renderLeft = () => {
+      const t = segValue("left");
+      const list = t === "moving" ? b.moving : t === "gaps" ? b.gaps.map((g) => ({ ...g, state: "rising", accounts: "", platforms: [], last_post: "" })) : t === "cooling" ? b.cooling.map((c) => ({ ...c, state: "cooling", score: c.heat, platforms: [], last_post: "", accounts: "" })) : null;
+      const empty = { moving: "Nothing is moving yet. Give it an hour after adding accounts.", gaps: "No gaps: everything MM's history likes, MM has covered or it isn't moving.", fastest: "Needs a few hours of readings to see pace.", cooling: "Nothing is cooling." };
+      $("#leftList").innerHTML = t === "fastest" ? (b.fastest.length ? b.fastest.map((p) => `<button class="item" type="button" data-post="${esc(p.id)}"><div class="item__grid"><div style="min-width:0"><p class="item__title clamp2" dir="auto">${esc(p.text)}</p><p class="item__meta truncate">${esc(p.account)}, ${esc(p.age)} ago, ${esc(metrics(p))}</p></div><div class="item__num">${esc(p.pace)}<small>the usual pace</small></div></div></button>`).join("") : `<p class="empty">${empty.fastest}</p>`)
+        : (list.length ? list.map((m) => t === "gaps" ? `<a class="item" href="#moment/${esc(m.id)}"><div class="item__grid"><div style="min-width:0"><p class="item__title clamp2" dir="auto">${esc(m.label)}</p><p class="item__sub clamp2 muted">${esc(m.why)}</p><p class="item__meta"><span class="go bold">MM ${esc(m.mm_fit)}</span>${m.best_format ? `, ${esc(fmt(m.best_format))}` : ""}</p></div><div class="item__num">${n(m.score)}</div></div></a>` : momentItem(m)).join("") : `<p class="empty">${empty[t]}</p>`);
+    };
+    const renderRight = () => {
+      const t = segValue("right");
+      $("#rightMore").textContent = t === "formats" ? "All formats" : t === "accounts" ? "All accounts" : "Past posts";
+      $("#rightMore").href = t === "formats" ? "#formats" : t === "accounts" ? "#accounts" : "#mm";
+      $("#rightFoot").textContent = t === "formats" ? "Median result this week against each account's own normal. 1.0x is normal." : t === "accounts" ? "Typical result this week against the account's own normal." : "MM's own posts against MM's normal for that format.";
+      if (t === "formats") $("#rightList").innerHTML = pulse.formats.length ? pulse.formats.map((f) => { const [pl, ft] = f.format.split(":"); return `<div class="item"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem"><span class="bold truncate" style="font-size:0.98rem">${esc(fmt(ft))} <span class="muted" style="font-weight:600">on ${esc(PLAT[pl] || pl)}</span></span><span class="display" style="font-size:1.05rem">${f.this_week}x</span></div><div class="meter" style="margin-top:0.3rem"><i style="width:${Math.max(4, Math.round(((f.this_week || 0) / maxF) * 100))}%;background:${(f.this_week || 0) >= 1.15 ? "var(--heat)" : (f.this_week || 0) < 0.85 ? "var(--cool)" : "var(--ink)"}"></i></div><p class="item__meta truncate">${f.n} posts${f.last_week ? `, last week ${f.last_week}x` : ""}</p></div>`; }).join("") : `<p class="empty">Needs a week of posts.</p>`;
+      else if (t === "accounts") $("#rightList").innerHTML = accts.length ? accts.map((a) => { const v = Number(String(a.typical).replace("x", "")); return `<a class="item" href="#posts/@${esc(a.account.replace("@", ""))}"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem"><span class="bold truncate" style="font-size:0.98rem">${esc(a.account)}</span><span class="display" style="font-size:1.05rem">${esc(a.typical)}</span></div><div class="meter" style="margin-top:0.3rem"><i style="width:${Math.max(4, Math.round((v / maxA) * 100))}%;background:${v >= 1.15 ? "var(--heat)" : v < 0.85 ? "var(--cool)" : "var(--ink)"}"></i></div><p class="item__meta truncate">${esc(PLAT[a.platform] || a.platform)}, ${esc(a.category)}, ${a.posts} posts, best ${esc(a.best)}</p></div></a>`; }).join("") : `<p class="empty">Nothing yet.</p>`;
+      else $("#rightList").innerHTML = b.mm_recent.length ? b.mm_recent.map((p) => `<a class="item" href="${esc(p.url || "#")}" target="_blank" rel="noopener"><div class="item__grid"><div style="min-width:0"><p class="item__title clamp2" dir="auto">${esc(p.text)}</p><p class="item__meta truncate">${esc(fmt(p.format))}, ${esc(p.age)} ago, ${esc(metrics(p))}</p></div><div class="item__num">${esc(vs(p))}</div></div></a>`).join("") : `<p class="empty">MM's own posts appear once the Instagram connector is polled.</p>`;
+    };
+    const renderFeed = async () => {
+      const plat = segValue("plat"), sort = segValue("sort");
+      const args = { sort, hours: sort === "newest" ? 24 : 48, limit: 40 };
+      if (plat !== "all") args.platform = plat;
+      const rows = await api("sz_posts", args).catch(() => []);
+      $("#feedList").innerHTML = rows.length ? rows.map((p) => postItem(p)).join("") : `<p class="empty">Nothing here yet. ${plat !== "all" ? `${PLAT[plat]} may not be connected yet; see Setup.` : ""}</p>`;
+    };
+    page.addEventListener("segchange", (e) => { if (e.detail === "left") renderLeft(); else if (e.detail === "right") renderRight(); else renderFeed(); });
+    renderLeft(); renderRight(); renderFeed();
   }
 
-  async function showMoment(id) {
-    const target = $("#mdetail");
-    if (!target) { location.hash = `#moments/${id}`; return; }
-    target.innerHTML = '<div class="card"><div class="empty">Loading</div></div>';
-    page.querySelectorAll("[data-moment]").forEach((el) => el.toggleAttribute("aria-current", el.dataset.moment === id) || (el.dataset.moment === id ? el.setAttribute("aria-current", "true") : el.removeAttribute("aria-current")));
+  async function openPost(id, host) {
+    const target = host || $("#feedAside");
+    if (!target) { location.hash = `#post/${id}`; return; }
+    document.querySelectorAll("[data-post]").forEach((el) => el.dataset.post === id ? el.setAttribute("aria-current", "true") : el.removeAttribute("aria-current"));
+    target.innerHTML = `<aside class="aside"><p class="muted">Loading</p></aside>`;
     try {
-      const m = await api("sz_moment", { id, posts: 20 });
-      target.innerHTML = `<section class="card">
-        <div class="row__meta">${badge(m.state)} ${(m.platforms || []).map(plat).join(" ")} · started ${esc(m.started)} · last post ${esc(m.last_post)} · ${m.accounts} accounts · ${m.posts} posts</div>
-        <div class="hero__label">${esc(m.label)}</div>
-        <p class="ui-text">${esc(m.why)}</p>
-        <dl class="kv" style="margin-top:12px"><dt>Score</dt><dd class="num">${m.score} <span class="muted">(heat ${m.heat}, ${m.direction})</span></dd><dt>Best format</dt><dd>${esc(m.best_format || "")}</dd><dt>Terms</dt><dd>${(m.terms || []).map((t) => `<span class="ui-badge ui-badge--assist">${esc(t)}</span>`).join(" ")}</dd><dt>MM fit</dt><dd>${esc(m.mm_fit || "no record")}${m.mm_covered ? ` · covered ${esc(m.mm_covered)}` : ""}</dd></dl>
-        ${m.mm_closest?.length ? `<h3 class="ui-title ui-title--xsmall" style="margin:16px 0 8px">MM's closest posts</h3><div class="list">${m.mm_closest.map((c) => `<div class="row"><div class="row__main"><div class="row__text">${link(c.url, esc(c.caption))}</div><div class="row__meta">${esc(c.format)} · ${esc(c.posted_at)} · sim ${c.sim}</div></div><div class="row__side num num--big">${c.pct ?? "?"}</div></div>`).join("")}</div>` : ""}
-        ${feedbackButtons(m.id)}
-        ${m.feedback?.length ? `<p class="small muted" style="margin-top:8px">${m.feedback.map((f) => `${esc(f.value)} ${new Date(f.at).toLocaleDateString()}`).join(" · ")}</p>` : ""}
-        <h3 class="ui-title ui-title--xsmall" style="margin:24px 0 8px">The posts</h3><div class="list">${m.top_posts.map((p) => postRow(p)).join("")}</div></section>`;
-    } catch (e) { target.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; }
+      const p = await api("sz_post", { id });
+      target.innerHTML = `<aside class="aside" aria-label="Post">
+        <button class="aside__close" type="button" data-close aria-label="Close">✕</button>
+        <p class="small muted" style="padding-right:2rem">${esc(p.account)}, ${esc(PLAT[p.platform] || p.platform)}, ${esc(fmt(p.format))}, ${esc(p.age)} ago</p>
+        <p class="display" style="font-size:2rem;margin-top:0.4rem;${hot(p) ? "color:var(--heat-ink)" : ""}">${esc(vs(p))}<span class="small muted" style="font-family:var(--body);font-weight:600;margin-left:0.4rem">their normal</span></p>
+        <p class="small muted">${esc(metrics(p))}${p.pace ? `, ${esc(p.pace)} the usual pace` : ""}</p>
+        ${p.trail?.length > 1 ? `<div style="margin:0.6rem 0">${spark(p.trail.map((t) => t.e), hot(p) ? "var(--heat)" : "var(--ink)", 160, 40)}<span class="small muted" style="margin-left:0.5rem">engagement since first seen</span></div>` : ""}
+        <p style="margin-top:0.8rem;line-height:1.4" dir="auto">${esc(p.full_text)}</p>
+        ${p.original_text ? `<p class="small muted" style="margin-top:0.6rem" dir="auto">Original: ${esc(p.original_text.slice(0, 300))}</p>` : ""}
+        ${p.moment ? `<p style="margin-top:0.8rem"><a class="link" href="#moment/${esc(p.moment.id)}">In the moment: ${esc(p.moment.label)}</a></p>` : ""}
+        <div style="margin-top:0.9rem;display:flex;flex-wrap:wrap;gap:0.5rem">${p.url ? `<a class="btn btn-sm" href="${esc(p.url)}" target="_blank" rel="noopener">Open on ${esc(PLAT[p.platform] || p.platform)}</a>` : ""}${feedback(null, p.id)}</div>
+      </aside>`;
+    } catch (e) { target.innerHTML = `<aside class="aside"><button class="aside__close" type="button" data-close aria-label="Close">✕</button><p class="muted">${esc(e.message)}</p></aside>`; }
   }
 
-  // ---- shell ----
-  const rail = $("#rail");
-  rail.innerHTML = PAGES.map(([id, label]) => `<button class="ui-rail__item" type="button" data-page="${id}"><span class="ui-rail__icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id]}</svg></span>${label}</button>`).join("");
-  rail.onclick = (e) => { const b = e.target.closest("[data-page]"); if (b) location.hash = `#${b.dataset.page}`; };
+  // ---------- Moments ----------
+  async function renderMoments() {
+    page.className = "page";
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Moments</h1><p class="lede" style="margin-top:1.2rem">Several of the accounts you watch posting about the same thing inside 72 hours. Ranked by heat, direction and fit for Meaningful Minute.</p></div></div>
+      <div class="toolbar">${seg("state", [["all", "All"], ["new", "New"], ["rising", "Rising"], ["peak", "Peaking"], ["cooling", "Cooling"]], "all")}</div><div id="mlist"><div class="skel" style="height:120px"></div></div>`;
+    const load = async () => {
+      const state = segValue("state");
+      const rows = await api("sz_moments", { limit: 40, ...(state !== "all" ? { state } : {}) });
+      $("#mlist").innerHTML = rows.length ? rows.map((m) => `<a class="row" href="#moment/${esc(m.id)}"><div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 1.5rem;align-items:center"><div style="min-width:0"><div style="display:flex;flex-wrap:wrap;gap:0.4rem 0.75rem;align-items:center;margin-bottom:0.5rem">${statePill(m.state)}${m.best_format ? `<span class="small bold">${esc(fmt(m.best_format))}</span>` : ""}<span class="small muted">${m.accounts} accounts on ${(m.platforms || []).map((x) => PLAT[x] || x).join(", ")}, last post ${esc(m.last_post)} ago</span></div><h3 class="h3" dir="auto">${esc(m.label)}</h3><p class="muted" style="margin-top:0.4rem;line-height:1.4" dir="auto">${esc(m.summary || m.why)}</p></div><div style="text-align:right"><div class="display" style="font-size:1.6rem">${n(m.score)}</div><div class="small muted">${m.mm_fit ? `MM ${esc(m.mm_fit)}` : "no MM record"}</div></div></div></a>`).join("") : `<p class="empty">No moments${state !== "all" ? " in that state" : " yet"}.</p>`;
+    };
+    page.addEventListener("segchange", load);
+    await load();
+  }
+
+  async function renderMoment(id) {
+    page.className = "page";
+    page.innerHTML = `<div class="skel" style="height:260px;margin-top:3rem"></div>`;
+    const m = await api("sz_moment", { id, posts: 30 });
+    const dark = m.state === "rising" || m.state === "new";
+    page.innerHTML = `
+      <section class="card ${dark ? "on-dark" : ""}" style="margin-top:2rem;padding:clamp(1.6rem,4vw,3.4rem);border-radius:var(--r-xl);${dark ? "background:var(--go);color:#fff" : ""}">
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem 0.9rem;align-items:center;margin-bottom:1rem">${dark ? `<span class="pill pill-white">${esc(STATE[m.state]?.[0] || m.state)}</span>` : statePill(m.state)}${m.best_format ? `<span class="bold">${esc(fmt(m.best_format))} doing best</span>` : ""}<span style="opacity:0.85">${m.accounts} accounts, ${m.posts} posts, started ${esc(m.started)}, last post ${esc(m.last_post)}</span></div>
+        <h1 class="display" style="font-size:clamp(1.7rem,3.4vw,2.8rem);line-height:1.06" dir="auto">${esc(m.label)}</h1>
+        ${m.summary ? `<p style="margin-top:1rem;font-size:1.08rem;line-height:1.5;max-width:60ch;${dark ? "opacity:0.9" : "color:var(--grey)"}" dir="auto">${esc(m.summary)}</p>` : ""}
+        <div style="margin-top:1.4rem;max-width:62ch">${reasons(m.why)}</div>
+        <div style="margin-top:1.6rem;display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">${feedback(m.id, null, { dark, xs: false })}<span class="display" style="font-size:1.4rem;margin-left:auto">${n(m.score)}<span class="small" style="font-family:var(--body);font-weight:600;opacity:0.7"> score, heat ${n(m.heat)}</span></span></div>
+        ${m.feedback?.length ? `<p class="small" style="margin-top:0.8rem;opacity:0.8">${m.feedback.map((f) => `${esc(f.value)} ${new Date(f.at).toLocaleDateString()}`).join(", ")}</p>` : ""}
+      </section>
+      <div class="cols" style="margin-top:3.5rem">
+        <section><h2 class="h2" style="margin-bottom:0.4rem">The posts</h2><p class="muted" style="margin-bottom:1rem">Every post in the moment, best first. The number is each post against its own account's normal.</p><div>${m.top_posts.map((p) => postItem(p)).join("")}</div></section>
+        <aside>
+          <h2 class="h2" style="margin-bottom:0.4rem">Meaningful Minute</h2>
+          <p class="muted" style="margin-bottom:1rem">${m.mm_fit ? `MM's history puts this at the <b class="go">${esc(m.mm_fit)}</b>.` : "Nothing like it in MM's history."}${m.mm_covered ? ` MM covered it ${esc(m.mm_covered)} ago.` : ""}</p>
+          ${(m.mm_closest || []).map((c) => `<a class="card" href="${esc(c.url || "#")}" target="_blank" rel="noopener" style="display:block;padding:1.1rem;margin-bottom:0.6rem"><p class="bold clamp2" dir="auto">${esc(c.caption)}</p><p class="small muted" style="margin-top:0.3rem">${esc(fmt(c.format))}, ${esc(c.posted_at)}${c.pct !== null ? `, <b>${c.pct}th percentile</b>` : ", collab"}</p></a>`).join("")}
+          <h3 class="h3" style="margin:2rem 0 0.6rem">Shared terms</h3><div style="display:flex;flex-wrap:wrap;gap:0.35rem">${(m.terms || []).map((t) => `<span class="pill" dir="auto">${esc(t)}</span>`).join("")}</div>
+        </aside>
+      </div><div id="feedAside"></div>`;
+  }
+
+  // ---------- Posts ----------
+  async function renderPosts(arg) {
+    page.className = "page";
+    const preset = arg ? decodeURIComponent(arg) : "";
+    const account = preset.startsWith("@") ? preset.slice(1) : "";
+    const query = preset && !account ? preset : "";
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Posts</h1><p class="lede" style="margin-top:1.2rem">Everything the watched accounts posted, each against that account's own normal for the format at that age.</p></div></div>
+      <div class="toolbar">${seg("sort", [["outperformance", "Beating normal"], ["pace", "Gaining"], ["newest", "Newest"], ["engagement", "Most engagement"]], "outperformance")}
+        <select class="input" id="plat"><option value="all">All platforms</option>${Object.entries(PLAT).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
+        <select class="input" id="hours"><option value="24">Last 24 hours</option><option value="48" selected>Last 48 hours</option><option value="168">Last week</option><option value="336">Two weeks</option></select>
+        <input class="input" id="q" placeholder="Search text or @account" value="${esc(account ? "@" + account : query)}">
+        <label class="small bold" style="display:flex;align-items:center;gap:0.4rem"><input type="checkbox" id="self"> include MM</label></div>
+      <div id="plist"><div class="skel" style="height:120px"></div></div><div id="feedAside"></div>`;
+    const load = async () => {
+      const args = { sort: segValue("sort"), hours: Number($("#hours").value), limit: 60, include_self: $("#self").checked };
+      if ($("#plat").value !== "all") args.platform = $("#plat").value;
+      const q = $("#q").value.trim();
+      if (q.startsWith("@")) args.account = q.slice(1); else if (q) args.query = q;
+      const rows = await api("sz_posts", args);
+      $("#plist").innerHTML = rows.length ? rows.map((p) => postItem(p)).join("") : `<p class="empty">Nothing matches.</p>`;
+    };
+    page.addEventListener("segchange", load); page.addEventListener("change", load);
+    $("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") load(); });
+    await load();
+  }
+
+  // ---------- Accounts ----------
+  async function renderAccounts() {
+    page.className = "page";
+    const rows = await api("sz_accounts", { include_inactive: true });
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Accounts</h1><p class="lede" style="margin-top:1.2rem">The accounts being watched. Adding one is how the system learns a new corner of the internet. Instagram accounts must be professional (business or creator); weight says how much that account's attention counts.</p></div></div>
+      <form class="card" id="addForm" style="margin-top:2.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:0.8rem;align-items:end">
+        <label class="label">Platform<select class="input" name="platform">${Object.entries(PLAT).filter(([v]) => v !== "threads").map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
+        <label class="label">Handle<input class="input" name="handle" required placeholder="username, channel or subreddit" autocomplete="off"></label>
+        <label class="label">Category<select class="input" name="category">${["peer", "big", "niche", "news", "creator", "org", "self"].map((v) => `<option>${v}</option>`).join("")}</select></label>
+        <label class="label">Weight<input class="input" name="weight" value="1"></label>
+        <button class="btn btn-go" type="submit">Add account</button>
+      </form>
+      <table class="table" style="margin-top:2.5rem"><tr><th>Account</th><th>Category, weight</th><th class="r">Normal</th><th class="r">This week</th><th>Status</th><th></th></tr>
+      ${rows.map((a) => `<tr data-acct="${esc(a.id)}"><td><a class="bold" href="#posts/@${esc(a.handle)}">${esc(a.handle)}</a> <span class="small muted">${esc(PLAT[a.platform] || a.platform)}</span>${a.display ? `<br><span class="small muted">${esc(a.display)}</span>` : ""}${a.followers ? `<br><span class="small muted">${k(a.followers)} followers</span>` : ""}</td><td>${esc(a.category)}, ${a.weight}</td><td class="r small">${Object.entries(a.normal_engagement || {}).map(([k2, v]) => `${esc(fmt(k2))} ${esc(v)}`).join("<br>") || '<span class="muted">no baseline yet</span>'}</td><td class="r">${esc(a.this_week || "")}</td><td>${!a.active ? '<span class="pill pill-cool">Paused</span>' : a.error ? `<span class="pill" style="background:#FDECEA;color:var(--bad)">Error</span> <span class="small muted">${esc(a.error.slice(0, 90))}</span>` : `<span class="pill pill-go">OK</span> <span class="small muted">${a.polled ? ago(a.polled) : ""}</span>`}</td><td class="r"><button class="link small" data-act="${a.active ? "pause" : "resume"}">${a.active ? "Pause" : "Resume"}</button> &nbsp; <button class="link small" data-act="remove">Remove</button></td></tr>`).join("")}</table>`;
+    $("#addForm").onsubmit = async (e) => { e.preventDefault(); const f = e.target; try { const r = await api("sz_track", { action: "add", platform: f.platform.value, handle: f.handle.value, category: f.category.value, weight: Number(f.weight.value) || 1 }); toast(r.note || "Added"); renderAccounts(); } catch (err) { toast(err.message); } };
+    page.onclick = async (e) => { const b = e.target.closest("[data-act]"); if (!b) return; const id = b.closest("tr").dataset.acct; const [platform, handle] = id.split(":"); if (b.dataset.act === "remove" && !confirm(`Remove ${id}?`)) return; try { await api("sz_track", { action: b.dataset.act, platform, handle }); toast(`${b.dataset.act}d ${id}`.replace("removed", "Removed").replace("paused", "Paused").replace("resumed", "Resumed")); renderAccounts(); } catch (err) { toast(err.message); } };
+  }
+
+  // ---------- Formats ----------
+  async function renderFormats() {
+    page.className = "page";
+    const f = await api("sz_formats", {});
+    const tbl = (rows) => `<table class="table"><tr><th>Format</th><th class="r">This week</th><th class="r">Last week</th><th class="r">Posts</th></tr>${rows.map((x) => { const [pl, ft] = x.format.split(":"); return `<tr><td><b>${esc(fmt(ft))}</b> <span class="muted">on ${esc(PLAT[pl] || pl)}</span></td><td class="r display" style="font-size:1.1rem">${x.this_week}x</td><td class="r muted">${x.last_week ? `${x.last_week}x` : "none"}</td><td class="r muted">${x.n}</td></tr>`; }).join("")}</table>`;
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Formats</h1><p class="lede" style="margin-top:1.2rem">Which formats and openers are beating normal this week across the accounts you watch. These are about how to post, not what. 1.0x is normal; ${f.posts_read} posts read.</p></div></div>
+      <div class="cols" style="margin-top:3rem"><section>${f.formats.length ? tbl(f.formats) : '<p class="empty">Needs a week of posts.</p>'}</section>
+      <section><h2 class="h3" style="margin-bottom:0.8rem">Openers</h2>${f.openers.length ? `<table class="table"><tr><th>First line</th><th class="r">With</th><th class="r">Without</th></tr>${f.openers.map((o) => `<tr><td>${esc({ question: "Asks a question", number: "Leads with a number", caps: "All caps", quote: "Opens with a quote", emoji_lead: "Starts with an emoji" }[o.trait] || o.trait)}</td><td class="r display" style="font-size:1.1rem">${o.with}x</td><td class="r muted">${o.without}x</td></tr>`).join("")}</table>` : '<p class="empty">Needs more posts.</p>'}</section></div>`;
+  }
+
+  // ---------- MM ----------
+  async function renderMm() {
+    page.className = "page";
+    const r = await api("sz_mm", { limit: 24 });
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Past posts</h1><p class="lede" style="margin-top:1.2rem">Meaningful Minute's own record: ${k(r.history.posts)} posts from ${esc(r.history.first)} to ${esc(r.history.last)}, each with where it landed for its format and season. Search it for any subject.</p></div></div>
+      <div class="toolbar"><input class="input" id="mmq" placeholder="Search MM's history" style="min-width:min(100%,28rem)"></div><div id="mmres"></div>
+      <section class="section"><div class="section__head"><div><h2 class="h2">MM lately</h2><p class="muted" style="margin-top:0.4rem">Against MM's own normal for that format at that age.</p></div></div><div>${r.recent.length ? r.recent.map((p) => postItem(p)).join("") : '<p class="empty">MM\'s own posts appear once the Instagram connector is polled.</p>'}</div></section><div id="feedAside"></div>`;
+    $("#mmq").addEventListener("keydown", async (e) => {
+      if (e.key !== "Enter") return; const q = e.target.value.trim(); if (!q) return;
+      const res = await api("sz_mm", { query: q });
+      $("#mmres").innerHTML = `<section><div class="section__head"><h2 class="h2">Closest past posts</h2><span class="muted">${res.fit !== null ? `This subject lands around the <b class="go">${Math.round(res.fit * 100)}th percentile</b> for MM` : "no fit reading"}</span></div>${res.matches.map((m) => `<a class="row" href="${esc(m.url || "#")}" target="_blank" rel="noopener"><div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 1.5rem;align-items:center"><div><p class="bold" style="font-size:1.05rem" dir="auto">${esc(m.caption)}</p><p class="small muted" style="margin-top:0.3rem">${esc(fmt(m.format))}, ${esc(m.posted_at)}${m.source === "collab" ? ", collab" : ""}</p></div><div class="display" style="font-size:1.5rem">${m.pct === null ? '<span class="small muted">n/a</span>' : m.pct}</div></div></a>`).join("") || '<p class="empty">Nothing close.</p>'}</section>`;
+    });
+  }
+
+  // ---------- Test ----------
+  async function renderTest() {
+    page.className = "page";
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Test an idea</h1><p class="lede" style="margin-top:1.2rem">A subject, an angle or a caption draft. It is read against MM's two years of posts and against what is moving on social right now.</p></div></div>
+      <div class="cols" style="margin-top:2.5rem"><section><textarea class="input" id="idea" rows="7" placeholder="What's the post?"></textarea><div style="margin-top:1rem"><button class="btn btn-go" id="run" type="button">Score it</button></div></section><section id="tres"></section></div>`;
+    $("#run").onclick = async () => {
+      const text = $("#idea").value.trim(); if (!text) return;
+      $("#tres").innerHTML = '<div class="skel" style="height:200px"></div>';
+      try {
+        const r = await api("sz_test_idea", { text });
+        const strong = /^Strong/.test(r.verdict);
+        $("#tres").innerHTML = `<div class="card ${strong ? "on-dark" : ""}" style="${strong ? "background:var(--go);color:#fff" : ""}"><h2 class="display" style="font-size:1.5rem;line-height:1.12">${esc(r.verdict)}</h2><p style="margin-top:0.8rem;${strong ? "opacity:0.9" : "color:var(--grey)"}">${r.mm.fit !== null ? `MM's history puts it around the ${Math.round(r.mm.fit * 100)}th percentile.` : "No record of anything like it."}${r.covered_recently ? ` MM posted something close on ${esc(r.covered_recently)}.` : ""}</p></div>
+          <h3 class="h3" style="margin:2rem 0 0.6rem">Closest MM posts</h3>${r.mm.matches.map((m) => `<a class="row" href="${esc(m.url || "#")}" target="_blank" rel="noopener"><div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 1rem;align-items:center"><div><p class="bold" dir="auto">${esc(m.caption)}</p><p class="small muted">${esc(fmt(m.format))}, ${esc(m.posted_at)}</p></div><div class="display" style="font-size:1.3rem">${m.pct ?? '<span class="small muted">n/a</span>'}</div></div></a>`).join("") || '<p class="empty">Nothing close.</p>'}
+          <h3 class="h3" style="margin:2rem 0 0.6rem">Live moments it rides</h3>${r.rides.map((m) => `<a class="row" href="#moment/${esc(m.id)}"><div style="display:flex;gap:0.6rem;align-items:center">${statePill(m.state)}<span class="bold" dir="auto">${esc(m.label)}</span><span class="small muted">${m.accounts} accounts</span></div></a>`).join("") || '<p class="empty">None right now.</p>'}`;
+      } catch (e) { $("#tres").innerHTML = `<p class="empty">${esc(e.message)}</p>`; }
+    };
+  }
+
+  // ---------- Engine ----------
+  async function renderEngine() {
+    page.className = "page";
+    const e = await api("sz_engine", {});
+    page.innerHTML = `<div class="pagehead"><div><h1 class="h1">Engine</h1><p class="lede" style="margin-top:1.2rem">How it runs: every ten minutes it collects what is due, translates what isn't English, reads every post against its account, finds the moments, scores them against MM's history, names them, and writes the brief.</p></div></div>
+      <div class="cols" style="margin-top:3rem"><section><table class="table"><tr><th>Stage</th><th>Last run</th><th>Said</th></tr>${Object.entries(e.stages).map(([s, v]) => `<tr><td><b>${esc(s)}</b></td><td class="small muted" style="white-space:nowrap">${ago(v.at)}${v.status !== "ok" ? ' <span style="color:var(--bad)">failed</span>' : ""}</td><td class="small">${esc(v.message)}</td></tr>`).join("")}</table>
+        ${e.failing.length ? `<h3 class="h3" style="margin:2rem 0 0.6rem">Accounts with errors</h3><table class="table">${e.failing.map((f) => `<tr><td><b>${esc(f.id)}</b></td><td class="small muted">${esc(f.error)}</td></tr>`).join("")}</table>` : ""}</section>
+      <aside><div class="card"><dl style="display:grid;grid-template-columns:auto 1fr;gap:0.4rem 1.2rem;margin:0">${Object.entries(e.counts).map(([k2, v]) => `<dt class="muted">${esc(k2.replace("_", " "))}</dt><dd style="margin:0" class="bold">${k(v)}</dd>`).join("")}<dt class="muted">X push</dt><dd style="margin:0" class="small">${esc(e.x_last_push)}</dd></dl></div>
+        <div class="card" style="margin-top:0.8rem"><p class="bold">Platforms</p>${e.platforms.map((p) => `<p class="small muted" style="margin-top:0.3rem">${esc(PLAT[p.platform] || p.platform)}: ${p.accounts} accounts, last poll ${p.last_poll ? ago(p.last_poll) : "never"}</p>`).join("")}</div>
+        <div style="margin-top:1rem;display:flex;gap:0.6rem;flex-wrap:wrap"><button class="btn btn-sm" id="runNow" type="button">Run now</button><a class="btn btn-soft btn-sm" href="/setup?key=${encodeURIComponent(key)}">Setup</a></div></aside></div>`;
+    $("#runNow").onclick = async () => { $("#runNow").disabled = true; toast("Running"); try { await api("sz_engine", { run_now: true }); await loadBrief(true); toast("Done"); renderEngine(); } catch (err) { toast(err.message); } };
+  }
+
+  // ---------- shell ----------
+  const navHtml = PAGES.map(([id, l]) => `<a href="#${id}" data-page="${id}">${l}</a>`).join("");
+  $("#nav").innerHTML = navHtml;
+  $("#mobnav").innerHTML = PAGES.filter(([id]) => id !== "engine").map(([id, l]) => `<a href="#${id}" data-page="${id}">${l.replace("Test an idea", "Test").replace("Past posts", "Past")}</a>`).join("");
+  const routes = { now: renderNow, moments: renderMoments, moment: renderMoment, posts: renderPosts, accounts: renderAccounts, formats: renderFormats, mm: renderMm, test: renderTest, engine: renderEngine, post: (id) => renderPosts().then(() => openPost(id)) };
   async function route() {
-    const [name, arg] = (location.hash.slice(1) || "now").split("/");
-    const id = render[name] ? name : "now";
-    rail.querySelectorAll("[data-page]").forEach((b) => b.toggleAttribute("aria-current", false) || (b.dataset.page === id ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")));
+    const [name, ...rest] = (location.hash.slice(1) || "now").split("/");
+    const arg = rest.join("/");
+    const id = routes[name] ? name : "now";
+    const section = id === "moment" ? "moments" : id === "post" ? "posts" : id;
+    document.querySelectorAll("[data-page]").forEach((a) => a.dataset.page === section ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
     page.onclick = null;
-    page.classList.add("loading");
-    try { await render[id](); } catch (e) { page.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; }
-    page.classList.remove("loading");
-    if (id === "moments" && arg) showMoment(arg);
+    window.scrollTo(0, 0);
+    try { await routes[id](arg); } catch (e) { page.className = "page"; page.innerHTML = `<p class="note" style="margin-top:3rem;background:#FDECEA;color:var(--bad)">This page did not load: ${esc(e.message)}. Reload to try again.</p>`; }
   }
   window.addEventListener("hashchange", route);
   page.addEventListener("click", async (e) => {
-    const seg = e.target.closest(".ui-segmented__option");
-    if (seg) { const g = seg.closest(".ui-segmented"); g.querySelectorAll(".ui-segmented__option").forEach((o, i) => { o.setAttribute("aria-checked", o === seg); if (o === seg) g.style.setProperty("--ui-segmented-index", i); }); page.dispatchEvent(new Event("segchange")); return; }
+    const sb = e.target.closest(".seg button");
+    if (sb) { const g = sb.closest(".seg"); g.querySelectorAll("button").forEach((o) => o.setAttribute("aria-pressed", o === sb)); page.dispatchEvent(new CustomEvent("segchange", { detail: g.dataset.seg })); return; }
+    const close = e.target.closest("[data-close]");
+    if (close) { close.closest(".aside").remove(); document.querySelectorAll("[data-post][aria-current]").forEach((el) => el.removeAttribute("aria-current")); return; }
     const fb = e.target.closest("[data-fb] [data-value]");
-    if (fb) { const w = fb.closest("[data-fb]"); try { await api("sz_feedback", { moment_id: w.dataset.fb || undefined, post_id: w.dataset.fbpost || undefined, value: fb.dataset.value }); toast(`Noted: ${fb.textContent}`); } catch (err) { toast(err.message); } return; }
-    const m = e.target.closest("[data-moment]");
-    if (m && !e.target.closest("a")) { e.preventDefault(); showMoment(m.dataset.moment); }
+    if (fb) { e.preventDefault(); const w = fb.closest("[data-fb]"); try { await api("sz_feedback", { moment_id: w.dataset.fb || undefined, post_id: w.dataset.fbpost || undefined, value: fb.dataset.value }); w.innerHTML = `<span class="bold small">${{ posted: "Marked as posted", liked: "Saved as a good idea", passed: "Marked as not for us" }[fb.dataset.value]}.</span>`; } catch (err) { toast(err.message); } return; }
+    const p = e.target.closest("[data-post]");
+    if (p && !e.target.closest("a")) { e.preventDefault(); openPost(p.dataset.post); }
   });
-  $("#refresh").onclick = async () => { await loadBrief(true); route(); toast("Brief rebuilt"); };
-  $("#theme").onclick = () => { const b = document.body; const dark = b.dataset.theme !== "dark"; b.dataset.theme = dark ? "dark" : "light"; $("#theme").textContent = dark ? "Light" : "Dark"; try { localStorage.setItem("sz_theme", b.dataset.theme); } catch {} };
-  try { if (localStorage.getItem("sz_theme") === "dark") $("#theme").click(); } catch {}
   loadBrief().then(route);
 })();
 </script>

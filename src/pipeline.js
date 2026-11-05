@@ -5,6 +5,7 @@ import { composeBrief } from "./brief.js";
 import { collectDue } from "./collect.js";
 import { logRun } from "./db.js";
 import { buildMoments, prune, readPosts, refreshTermDf, scoreMoments } from "./engine.js";
+import { nameMoments, translateDue } from "./lang.js";
 
 async function stage(env, name, fn) {
   const t = Date.now();
@@ -31,11 +32,13 @@ function summarize(r) {
 export async function runPipeline(env, { budgetMs = 40000, collect = true } = {}) {
   const log = [];
   if (collect) log.push(await stage(env, "collect", () => collectDue(env, { budgetMs })));
+  log.push(await stage(env, "translate", () => translateDue(env)));
   log.push(await stage(env, "terms", () => refreshTermDf(env)));
   log.push(await stage(env, "read", () => readPosts(env)));
   const built = await stage(env, "moments", () => buildMoments(env));
   log.push({ ...built, result: undefined });
   if (built.result) log.push(await stage(env, "score", () => scoreMoments(env, built.result)));
+  log.push(await stage(env, "name", () => nameMoments(env)));
   log.push(await stage(env, "brief", async () => { const b = await composeBrief(env); return { moving: b.moving.length, gaps: b.gaps.length, outperformers: b.outperformers.length }; }));
   if (new Date().getUTCMinutes() < 10) log.push(await stage(env, "prune", () => prune(env).then(() => "ok")));
   return log;

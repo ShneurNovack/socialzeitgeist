@@ -287,6 +287,7 @@ export async function buildMoments(env) {
     else if (heat > prevHeat * 1.15) state = "rising";
     else if (heat < peak * 0.6) state = "cooling";
     else state = "peak";
+    // Keep a name the naming pass wrote; otherwise a label from the shared terms until it runs.
     const label = prior?.label && !/^Untitled/.test(prior.label) ? prior.label : labelFrom(shared);
     const platforms = [...new Set(members.map((m) => m.platform))];
     out.push({ id, label, shared, members, heat, prevHeat, peak, state, carrier, bestFormat, firstAt, lastAt, platforms, accounts: accounts.size, prior });

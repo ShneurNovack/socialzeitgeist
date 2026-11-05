@@ -16,6 +16,9 @@ IG_MCP_URL = "https://instagrammcp.shneur.workers.dev/"
 binding = "IG"
 service = "instagrammcp"
 
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["*/10 * * * *"]
 
