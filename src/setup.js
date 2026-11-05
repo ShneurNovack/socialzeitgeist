@@ -199,7 +199,7 @@ ${xSaved ? `<p class="ok">Burner saved${xUser ? ` (@${esc(xUser)})` : ""}. Last 
 
 <h2>5. Mac collector</h2>
 <p>One script on the Mac reads X and Reddit (both refuse cloud IPs) every 15 minutes and pushes here. It pulls its own config from this Worker, so the only thing on the Mac is the endpoint and key. Install once in Terminal:</p>
-<pre>mkdir -p ~/.socialzeitgeist && curl -fsSL https://raw.githubusercontent.com/ShneurNovack/socialzeitgeist/main/scripts/home_collector.py -o ~/.socialzeitgeist/home_collector.py && printf '{"endpoint":"${esc(origin)}","key":"${esc(key)}"}' > ~/.socialzeitgeist/config.json && pip3 install -q twscrape requests && curl -fsSL https://raw.githubusercontent.com/ShneurNovack/socialzeitgeist/main/scripts/install_launchd.sh | bash</pre>
+<pre>mkdir -p ~/.socialzeitgeist && curl -fsSL https://raw.githubusercontent.com/ShneurNovack/socialzeitgeist/main/scripts/home_collector.py -o ~/.socialzeitgeist/home_collector.py && printf '{"endpoint":"${esc(origin)}","key":"${esc(key)}"}' > ~/.socialzeitgeist/config.json && curl -fsSL https://raw.githubusercontent.com/ShneurNovack/socialzeitgeist/main/scripts/install_launchd.sh | bash</pre>
 
 <h2>6. Accounts</h2>
 <p>The accounts being watched. Instagram must be professional accounts. Category says what the account is to MM; weight (0.2 to 2) says how much its attention counts.</p>
