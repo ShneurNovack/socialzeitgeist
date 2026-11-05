@@ -29,7 +29,7 @@ async function translate(env, text, lang) {
 }
 
 // Posts that still need an English text. Up to `max` per run, newest first, so the brief reads in English fast.
-export async function translateDue(env, { max = 30, budgetMs = 25000 } = {}) {
+export async function translateDue(env, { max = 30, budgetMs = 40000 } = {}) {
   if (!env.AI) return { skipped: "no AI binding" };
   // Posts stored before the language column existed: detect them now.
   const unlabeled = await all(env, "SELECT id, text FROM posts WHERE lang = 'en' AND text_en IS NULL AND posted_at > ? LIMIT 400", Date.now() - 7 * 86400000);
@@ -60,6 +60,7 @@ export async function nameMoments(env, { max = 8 } = {}) {
   if (!env.AI) return { skipped: "no AI binding" };
   const moments = await all(env, "SELECT id, label, terms, n_posts, named_n FROM moments WHERE archived = 0 AND (named_n IS NULL OR n_posts >= named_n + 3 OR summary IS NULL) ORDER BY score DESC LIMIT ?", max);
   let named = 0;
+  const errors = [];
   for (const m of moments) {
     const posts = await all(env, "SELECT p.text, p.text_en, a.handle FROM posts p JOIN accounts a ON a.id = p.account_id WHERE p.moment_id = ? ORDER BY p.z DESC NULLS LAST LIMIT 4", m.id);
     if (!posts.length) continue;
@@ -77,14 +78,15 @@ export async function nameMoments(env, { max = 8 } = {}) {
       const parsed = m2 ? JSON.parse(m2[0]) : null;
       const label = String(parsed?.label || "").replace(/[—–]/g, ",").trim().slice(0, 90);
       const summary = String(parsed?.summary || "").replace(/[—–]/g, ",").trim().slice(0, 240);
-      if (label.length < 4) continue;
+      if (label.length < 4) { errors.push(`${m.id}: no label in ${text.slice(0, 80)}`); continue; }
       await run(env, "UPDATE moments SET label = ?, summary = ?, named_n = ? WHERE id = ?", label, summary || null, m.n_posts, m.id);
       named++;
-    } catch {
+    } catch (err) {
+      errors.push(`${m.id}: ${err.message}`.slice(0, 160));
       await run(env, "UPDATE moments SET named_n = ? WHERE id = ?", m.n_posts, m.id);
     }
   }
-  return { named, checked: moments.length };
+  return { named, checked: moments.length, errors };
 }
 
 // Names coming up today: terms (mostly names) that several accounts used in the last 24 hours, against how
