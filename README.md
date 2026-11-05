@@ -20,7 +20,7 @@ GitHub pushes to `main` deploy automatically through Cloudflare Workers Builds.
 | X | `scripts/home_collector.py` on the Mac, pushed to `/ingest/x` | twscrape with a burner account's cookies (saved on the setup page, pulled by the Mac), reads only. Never a real account. |
 | Telegram | public channel preview (`t.me/s/<channel>`) | views only |
 | Bluesky | public AppView API | no login |
-| Reddit | from the Mac script (Reddit refuses cloud IPs) | subreddit listings |
+| Reddit | official API, app-only OAuth (script app id and secret on the setup page) | subreddit listings, read only |
 
 ## Setup
 

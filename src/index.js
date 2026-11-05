@@ -15,7 +15,7 @@ import { all, batch, first, j, run, setSetting } from "./db.js";
 import { handleMcp } from "./mcp.js";
 import { runPipeline } from "./pipeline.js";
 import { terms } from "./text.js";
-import { fbCallback, homeConfig, saveAccount, saveMeta, saveX, setupPage, startFb } from "./setup.js";
+import { fbCallback, homeConfig, saveAccount, saveMeta, saveReddit, saveX, setupPage, startFb } from "./setup.js";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -115,6 +115,7 @@ export default {
         if (pathname === "/setup/connect-fb") return startFb(request, env);
         if (pathname === "/setup/meta" && form) notice = await saveMeta(env, form);
         else if (pathname === "/setup/x" && form) notice = await saveX(env, form);
+        else if (pathname === "/setup/reddit" && form) notice = await saveReddit(env, form);
         else if (pathname === "/setup/account" && form) notice = await saveAccount(env, form);
       } catch (err) {
         notice = `Error: ${err.message}`;

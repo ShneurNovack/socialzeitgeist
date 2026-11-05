@@ -7,7 +7,8 @@ pushes normalized posts to the Worker's /ingest/x endpoint.
   X:      through twscrape, with a BURNER account's cookies only. Never a real MM or personal account.
           twscrape talks to X's internal API the way the web app does; X's terms don't allow it, so the
           only account exposed to a suspension is the burner. Reads only, nothing is ever posted.
-  Reddit: the public listing JSON, which Reddit refuses to cloud IPs but serves to a home connection.
+  Reddit: no longer here; Reddit refuses anonymous listings everywhere, so the Worker reads it through
+          Reddit's official app-only OAuth (set up on the setup page).
 
 The only thing on the Mac is ~/.socialzeitgeist/config.json:
   { "endpoint": "https://socialzeitgeist.shneur.workers.dev", "key": "<SZ_KEY>" }
@@ -193,7 +194,7 @@ def main():
     x = remote.get("x") or {}
     if x.get("accounts") or x.get("list_id"):
         rows += asyncio.run(collect_x(x))
-    rows += collect_reddit((remote.get("reddit") or {}).get("subs", []))
+    rows += collect_reddit((remote.get("reddit") or {}).get("subs", []))  # empty now: Reddit reads run on the Worker
     result = push(cfg, rows)
     state = load(STATE, {})
     state.update({"last_run": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "pushed": len(rows), "result": result})

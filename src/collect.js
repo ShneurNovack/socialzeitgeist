@@ -6,7 +6,7 @@
 
 import { hook, terms } from "./text.js";
 import { all, batch, j, run } from "./db.js";
-import { businessDiscovery } from "./setup.js";
+import { businessDiscovery, REDDIT_UA, redditAuth } from "./setup.js";
 
 const UA = "socialzeitgeist/1.0 (+https://reshapecreative.com; private research tool)";
 
@@ -156,12 +156,13 @@ export async function collectBluesky(env, account) {
   return { profile, posts };
 }
 
-// ---- Reddit (public listing JSON) ---------------------------------------------------------------
+// ---- Reddit (official API, app-only OAuth) -------------------------------------------------------
 
 export async function collectReddit(env, account) {
   const sub = account.handle.replace(/^r\//, "");
-  const res = await fetch(`https://www.reddit.com/r/${encodeURIComponent(sub)}/new.json?limit=50&raw_json=1`, {
-    headers: { "user-agent": UA, accept: "application/json" },
+  const token = await redditAuth(env);
+  const res = await fetch(`https://oauth.reddit.com/r/${encodeURIComponent(sub)}/new?limit=50&raw_json=1`, {
+    headers: { "user-agent": REDDIT_UA, accept: "application/json", authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(20000),
   });
   if (!res.ok) throw new Error(`reddit ${res.status}`);
@@ -289,13 +290,13 @@ export async function markPolled(env, account, { error, profile } = {}) {
 const COLLECTORS = { instagram: collectInstagram, telegram: collectTelegram, bluesky: collectBluesky, reddit: collectReddit };
 
 // Poll the accounts that are due. Instagram is polled hourly (Meta's rate limit is 200 calls an hour
-// per token); the open platforms every 20 minutes. X and Reddit are pushed from the Mac (Reddit refuses
-// cloud IPs), so they are never polled from here.
+// per token); the others every 20 minutes. X is pushed from the Mac, never polled from here.
 export async function collectDue(env, { budgetMs = 40000, max = 40 } = {}) {
   const now = Date.now();
   const due = await all(
     env,
-    `SELECT * FROM accounts WHERE active = 1 AND platform NOT IN ('x', 'reddit')
+    `SELECT * FROM accounts WHERE active = 1 AND platform != 'x'
+       AND NOT (platform = 'reddit' AND (SELECT COUNT(*) FROM settings WHERE key = 'reddit_client_id') = 0)
        AND (polled_at IS NULL OR polled_at < CASE WHEN platform = 'instagram' THEN ? ELSE ? END)
      ORDER BY polled_at IS NOT NULL, polled_at LIMIT ?`,
     now - 55 * 60000, now - 20 * 60000, max,

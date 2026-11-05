@@ -87,6 +87,29 @@ async function fbExchange(env, { appId, appSecret, redirectUri, code }) {
   return accounts;
 }
 
+// ---- Reddit (official OAuth, app-only) ----------------------------------------------------------
+// Reddit refuses anonymous listings now, from home as well as the cloud. The official API is free
+// for read-only use with a "script" app's client id and secret (client_credentials, no user login).
+
+let redditToken = { value: null, expires: 0 };
+export async function redditAuth(env) {
+  if (redditToken.value && Date.now() < redditToken.expires - 60000) return redditToken.value;
+  const id = await getSetting(env, "reddit_client_id");
+  const sec = await secret(env, "reddit_client_secret");
+  if (!id || !sec) throw new Error("Reddit app not set up: open the setup page.");
+  const res = await fetch("https://www.reddit.com/api/v1/access_token", {
+    method: "POST",
+    headers: { authorization: `Basic ${btoa(`${id}:${sec}`)}`, "content-type": "application/x-www-form-urlencoded", "user-agent": REDDIT_UA },
+    body: "grant_type=client_credentials",
+    signal: AbortSignal.timeout(20000),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.access_token) throw new Error(`Reddit auth failed (${res.status}): ${body.error || "no token"}`);
+  redditToken = { value: body.access_token, expires: Date.now() + (body.expires_in || 3600) * 1000 };
+  return redditToken.value;
+}
+export const REDDIT_UA = "web:socialzeitgeist:1.0 (private research tool by u/reshapecreative)";
+
 // ---- pages ---------------------------------------------------------------------------------------
 
 function esc(v) {
@@ -197,11 +220,18 @@ ${xSaved ? `<p class="ok">Burner saved${xUser ? ` (@${esc(xUser)})` : ""}. Last 
   <label>X List id (optional, a private List to read on top of the handles below)</label><input name="list_id" value="${esc((await getSetting(env, "x_list_id")) || "")}" autocomplete="off">
   <button type="submit">Save X</button></form>
 
-<h2>5. Mac collector</h2>
-<p>One script on the Mac reads X and Reddit (both refuse cloud IPs) every 15 minutes and pushes here. It pulls its own config from this Worker, so the only thing on the Mac is the endpoint and key. Install once in Terminal:</p>
+<h2>5. Reddit app</h2>
+<p>Reddit's official API, read-only, app-only (no Reddit login). At <a href="https://www.reddit.com/prefs/apps" style="color:inherit">reddit.com/prefs/apps</a> create an app of type "script" (any name, redirect uri <code>http://localhost</code>), then paste the id shown under the app name and the secret.</p>
+${await getSetting(env, "reddit_client_id") ? `<p class="ok">Reddit app saved</p>` : `<p class="bad">No Reddit app yet (subreddits are skipped until then)</p>`}
+<form method="post" action="/setup/reddit"><input type="hidden" name="key" value="${esc(key)}">
+  <div class="row"><div><label>Client id</label><input name="client_id" value="${esc((await getSetting(env, "reddit_client_id")) || "")}" autocomplete="off"></div><div><label>Secret</label><input name="client_secret" type="password" autocomplete="off"></div></div>
+  <button type="submit">Save Reddit</button></form>
+
+<h2>6. Mac collector</h2>
+<p>One script on the Mac reads X every 15 minutes (X refuses cloud IPs) and pushes here. It pulls its own config from this Worker, so the only thing on the Mac is the endpoint and key. Install once in Terminal:</p>
 <pre>mkdir -p ~/.socialzeitgeist && curl -fsSL https://raw.githubusercontent.com/ShneurNovack/socialzeitgeist/main/scripts/home_collector.py -o ~/.socialzeitgeist/home_collector.py && printf '{"endpoint":"${esc(origin)}","key":"${esc(key)}"}' > ~/.socialzeitgeist/config.json && curl -fsSL https://raw.githubusercontent.com/ShneurNovack/socialzeitgeist/main/scripts/install_launchd.sh | bash</pre>
 
-<h2>6. Accounts</h2>
+<h2>7. Accounts</h2>
 <p>The accounts being watched. Instagram must be professional accounts. Category says what the account is to MM; weight (0.2 to 2) says how much its attention counts.</p>
 <form method="post" action="/setup/account"><input type="hidden" name="key" value="${esc(key)}"><input type="hidden" name="action" value="add">
   <div class="row">
@@ -296,6 +326,23 @@ export async function saveX(env, form) {
   return "X settings saved.";
 }
 
+export async function saveReddit(env, form) {
+  const id = String(form.get("client_id") || "").trim();
+  const sec = String(form.get("client_secret") || "").trim();
+  if (!id) return "Error: the client id is needed.";
+  await setSetting(env, "reddit_client_id", id);
+  if (sec) await setSetting(env, "reddit_client_secret", await encrypt(env, sec));
+  else if (!(await getSetting(env, "reddit_client_secret"))) return "Error: the secret is needed the first time.";
+  redditToken = { value: null, expires: 0 };
+  try {
+    await redditAuth(env);
+  } catch (e) {
+    return `Error: ${e.message}`;
+  }
+  await run(env, "UPDATE accounts SET polled_at = NULL, last_error = NULL WHERE platform = 'reddit'");
+  return "Reddit app saved and working.";
+}
+
 export async function saveAccount(env, form) {
   const action = String(form.get("action") || "");
   const now = Date.now();
@@ -319,9 +366,8 @@ export async function saveAccount(env, form) {
 export async function homeConfig(env) {
   const cookies = p(await secret(env, "x_cookies"), null);
   const xs = await all(env, "SELECT handle FROM accounts WHERE platform = 'x' AND active = 1");
-  const rs = await all(env, "SELECT handle FROM accounts WHERE platform = 'reddit' AND active = 1");
   return {
     x: { cookies, username: await getSetting(env, "x_username"), list_id: (await getSetting(env, "x_list_id")) || null, accounts: xs.map((r) => r.handle), limit: 20 },
-    reddit: { subs: rs.map((r) => r.handle) },
+    reddit: { subs: [] },
   };
 }
