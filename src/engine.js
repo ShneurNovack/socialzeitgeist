@@ -82,7 +82,8 @@ export async function readPosts(env) {
       if (!b || b.n < 3) continue;
       const ageH = (now - x.posted_at) / H;
       const expected = Math.expm1(b.med) * f(x.platform, ageH);
-      const lr = Math.log1p(x.e) - Math.log1p(expected);
+      // A small prior so an account whose normal is 1 like doesn't show 40x on 40 likes.
+      const lr = Math.log(x.e + 4) - Math.log(expected + 4);
       const ratio = Math.exp(lr);
       const z = lr / (b.mad + 0.25);
       live.push({ id: x.id, ratio, z, ageH, expected, platform: x.platform, account: acc, media_type: x.media_type, e: x.e });
